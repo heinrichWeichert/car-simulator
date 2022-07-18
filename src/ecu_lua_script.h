@@ -76,6 +76,8 @@ public:
     void registerSessionController(SessionController* pSesCtrl) noexcept;
     void registerIsoTpSender(IsoTpSender* pSender) noexcept;
 
+    std::string intToHexString(const uint8_t* buffer, const std::size_t num_bytes);
+
 private:
     sel::State lua_state_{true};
     std::string ecu_ident_;

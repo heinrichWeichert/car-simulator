@@ -35,16 +35,10 @@ J1939Simulator::J1939Simulator(const std::string& device,
                                EcuLuaScript *pEcuScript)
 : device_(device)
 , pEcuScript_(pEcuScript)
-//, j1939ReceiverThread_(&J1939Simulator::readData, this)
 {
     source_address_ = pEcuScript->getJ1939SourceAddress();
-    pgns_ = new uint16_t[1];
 
-    int err = openReceiver();
-    if (err != 0)
-    {
-        throw exception();
-    }
+    pgns_ = new uint16_t[1];
 
     sendVIN(0x03);
     // This is just a demo for the getKeys function I implemented into Selene
@@ -59,6 +53,7 @@ J1939Simulator::J1939Simulator(const std::string& device,
         cout << pgn << " -> "<< pEcuScript_->getJ1939PGNData(pgn).payload << endl;
     }
 
+    j1939ReceiverThread_ = new std::thread(&J1939Simulator::readData, this);
     startPeriodicSenderThreads();
 
 }
@@ -72,7 +67,10 @@ void J1939Simulator::waitForSimulationEnd()
 {
     for (auto cyclicThread : cyclicMessageThreads) {
         cyclicThread->join();
+        delete cyclicThread;
     }
+    j1939ReceiverThread_->join();
+    delete j1939ReceiverThread_;
 }
 
 
@@ -87,13 +85,20 @@ J1939Simulator::~J1939Simulator()
 void J1939Simulator::startPeriodicSenderThreads()
 {
     cout << "Fetching PGNs" << endl;
-    vector<string> pgns = pEcuScript_->getJ1939PGNs();
+    vector<string> pgnrequests = pEcuScript_->getJ1939PGNs();
     cout << "PGNs fetched" << endl;
 
-    for (auto pgn : pgns) {
-        cout << "PGN: " << pgn << endl;
-        std::thread *cyclicThread = new std::thread(&J1939Simulator::sendCyclicMessage, this, pgn);
-        cyclicMessageThreads.push_back(cyclicThread);
+    for (auto pgnrequest : pgnrequests) {
+        size_t separatorPos = pgnrequest.find_first_of('#');
+        // cyclic sent PGNs or PGNs requested via EA00
+        if(separatorPos == string::npos) {
+            cout << "PGN: " << pgnrequest << endl;
+            std::thread *cyclicThread = new std::thread(&J1939Simulator::sendCyclicMessage, this, pgnrequest);
+            cyclicMessageThreads.push_back(cyclicThread);
+        } else {
+            uint32_t pgn = parsePGN(pgnrequest.substr(0,separatorPos));
+            string payload = pgnrequest.substr(separatorPos + 1, string::npos);
+        }
     }
     cout << "PGN threads started" << endl;
 }
@@ -169,6 +174,12 @@ void J1939Simulator::closeReceiver() noexcept
  */
 int J1939Simulator::readData() noexcept
 {
+    int err = openReceiver();
+    if (err != 0)
+    {
+        throw exception();
+    }
+
     if (receive_skt_ < 0)
     {
         cerr << __func__ << "() Can not read data. J1939 receiver socket invalid!\n";
@@ -197,10 +208,11 @@ int J1939Simulator::readData() noexcept
         num_bytes = recvfrom(receive_skt_, msg, sizeof(msg), 0, (struct sockaddr *)&saddr, &addrlen);
 
         cout << "Message received from: " << hex << (unsigned short)saddr.can_addr.j1939.addr << dec << endl;
+        cout << " -> PGN: " << hex << (unsigned short)saddr.can_addr.j1939.pgn << dec << endl;
 
         if (num_bytes > 0 && num_bytes < MAX_BUFSIZE)
         {
-            proceedReceivedData(msg, num_bytes, saddr.can_addr.j1939.addr);
+            proceedReceivedData(msg, num_bytes, saddr.can_addr.j1939.addr, saddr.can_addr.j1939.pgn);
         }
     }
     while (!isOnExit_);
@@ -213,7 +225,7 @@ int J1939Simulator::readData() noexcept
  * 
  * @see J1939Simulator::readData()
  */
-void J1939Simulator::proceedReceivedData(const uint8_t* buffer, const size_t num_bytes, const uint8_t sourceAddress) noexcept
+void J1939Simulator::proceedReceivedData(const uint8_t* buffer, const size_t num_bytes, const uint8_t sourceAddress, const uint32_t pgn) noexcept
 {
     
     // Print out what we received
@@ -227,6 +239,34 @@ void J1939Simulator::proceedReceivedData(const uint8_t* buffer, const size_t num
                 << static_cast<int> (buffer[i]);
     }
     cout << endl;
+
+    string pgnRequest = "";
+    uint8_t pgnBuffer[3];
+    pgnBuffer[0] = (uint8_t)(pgn >> 0);
+    pgnBuffer[1] = (uint8_t)(pgn >> 8);
+    pgnBuffer[2] = (uint8_t)(pgn >> 16);
+    pgnRequest += pEcuScript_->intToHexString(pgnBuffer, sizeof(pgnBuffer));
+    pgnRequest += " # ";
+    pgnRequest += pEcuScript_->intToHexString(buffer, num_bytes);
+
+    cout << "Looking for PGN request: " << pgnRequest << endl;
+
+    string pgnResponse = pEcuScript_->getJ1939PGNData(pgnRequest).payload;
+    cout << "-> Response: " << pEcuScript_->getJ1939PGNData(pgnRequest).payload << endl;
+
+    if(pgnResponse != "") {
+        struct sockaddr_can saddr;
+        saddr.can_family = AF_CAN;
+        saddr.can_addr.j1939.name = J1939_NO_NAME;
+        saddr.can_addr.j1939.pgn = pgn;
+        saddr.can_addr.j1939.addr = sourceAddress;
+
+        vector<unsigned char> rawMessage = pEcuScript_->literalHexStrToBytes(pgnResponse);
+
+        sendto(receive_skt_, rawMessage.data(), rawMessage.size(), 0, (const struct sockaddr *)&saddr, sizeof(saddr));
+    } else if(pgn == 0xEA00) {
+        //TODO: Reqest PGN
+    }
 
     if(num_bytes > 2 
         && buffer[0] == 0xec
