@@ -122,9 +122,10 @@ void UdsReceiver::proceedReceivedData(const uint8_t* buffer, const size_t num_by
                 break;
                 // TODO: implement all other requests ...
         default:
-            constexpr array<uint8_t, 2> resp = {
+            array<uint8_t, 3> resp = {
                 ERROR,
-                SUBFUNCTION_NOT_SUPPORTED
+		udsServiceIdentifier,
+	    	SERVICE_NOT_SUPPORTED
             };
             pIsoTpSender_->sendData(resp.data(), resp.size());
         }
@@ -176,9 +177,10 @@ void UdsReceiver::readDataByIdentifier(const uint8_t* buffer, const size_t num_b
     }
     else // send out of range
     {
-        constexpr array<uint8_t, 2> nrc = {
+        array<uint8_t, 3> nrc = {
             ERROR,
-            REQUEST_OUT_OF_RANGE
+	    0x22,
+	    SERVICE_NOT_SUPPORTED
         };
         pIsoTpSender_->sendData(nrc.data(), nrc.size());
     }
@@ -253,9 +255,10 @@ void UdsReceiver::securityAccess(const uint8_t* buffer, const size_t num_bytes) 
         }
         else
         {
-            constexpr array<uint8_t, 2> resp = {
+            array<uint8_t, 3> resp = {
                 ERROR,
-                SUBFUNCTION_NOT_SUPPORTED
+		0x27,
+	    	SERVICE_NOT_SUPPORTED
             };
             pIsoTpSender_->sendData(resp.data(), resp.size());
         }
