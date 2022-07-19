@@ -40,7 +40,6 @@ J1939Simulator::J1939Simulator(const std::string& device,
 
     pgns_ = new uint16_t[1];
 
-    sendVIN(0x03);
     // This is just a demo for the getKeys function I implemented into Selene
     // One could use that to fetch a list of configured PDNs from the lua file
     cout << "Requests:" << endl;
@@ -183,6 +182,8 @@ int J1939Simulator::readData() noexcept
         return -1;
     }
 
+    sendVIN(0x03);
+
     // Sending some dummy PGN to see that it works
     struct sockaddr_can saddr;
     saddr.can_family = AF_CAN;
@@ -253,22 +254,49 @@ void J1939Simulator::proceedReceivedData(const uint8_t* buffer, const size_t num
     string pgnResponse = pEcuScript_->getJ1939PGNData(pgnRequest).payload;
     cout << "-> Response: " << pEcuScript_->getJ1939PGNData(pgnRequest).payload << endl;
 
-    struct sockaddr_can saddr;
+    struct sockaddr_can saddr = {};
     saddr.can_family = AF_CAN;
     saddr.can_addr.j1939.name = J1939_NO_NAME;
     saddr.can_addr.j1939.addr = sourceAddress;
 
+    vector<unsigned char> rawMessage;
+
     if(pgnResponse != "") {
-        uint32_t respondingPgn = pgn;
+        uint32_t respondingPgn;
 
         size_t separatorPos = pgnResponse.find_first_of('#');
         if(separatorPos != string::npos) {
             respondingPgn = parsePGN(pgnResponse.substr(0,separatorPos));
             pgnResponse = pgnResponse.substr(separatorPos + 1, string::npos);
+            rawMessage = pEcuScript_->literalHexStrToBytes(pgnResponse);
+        } else if(pgnResponse.substr(0,3) == "ACK") {
+            // according to J1939-21, 5.4.4 Acknowledgement
+            respondingPgn = 0xE800;
+            vector<unsigned char> ackInfo = 
+                pEcuScript_->literalHexStrToBytes(pgnResponse.substr(3, string::npos));
+            if(ackInfo.size() > 0) { // Control byte
+                rawMessage.push_back(ackInfo[0]);
+            } else {
+                rawMessage.push_back(0x00);
+            }
+            if(ackInfo.size() > 1) { // Group Function Value
+                rawMessage.push_back(ackInfo[1]);
+            } else {
+                rawMessage.push_back(0x00);
+            }
+            rawMessage.push_back(0xFF); // Reserved
+            rawMessage.push_back(0xFF); // Reserved
+            rawMessage.push_back(sourceAddress); // Address Acknowledged
+            rawMessage.push_back((uint8_t)(pgn >> 0)); // PGN of requested information
+            rawMessage.push_back((uint8_t)(pgn >> 8)); // PGN of requested information
+            rawMessage.push_back((uint8_t)(pgn >> 16)); // PGN of requested information
+
+            saddr.can_addr.j1939.addr = 0xff;
+        } else {
+            respondingPgn = pgn;
+            rawMessage = pEcuScript_->literalHexStrToBytes(pgnResponse);
         }
         saddr.can_addr.j1939.pgn = respondingPgn;
-
-        vector<unsigned char> rawMessage = pEcuScript_->literalHexStrToBytes(pgnResponse);
 
         sendto(receive_skt_, rawMessage.data(), rawMessage.size(), 0, (const struct sockaddr *)&saddr, sizeof(saddr));
     } else if(pgn == 0xEA00) {
@@ -279,9 +307,23 @@ void J1939Simulator::proceedReceivedData(const uint8_t* buffer, const size_t num
         cout << "-> Response: " << pgnResponse << endl;
 
         vector<unsigned char> rawMessage = pEcuScript_->literalHexStrToBytes(pgnResponse);
-        sendto(receive_skt_, rawMessage.data(), rawMessage.size(), 0, (const struct sockaddr *)&saddr, sizeof(saddr));
+        ssize_t sentBytes = sendto(receive_skt_, rawMessage.data(), rawMessage.size(), 0, (const struct sockaddr *)&saddr, sizeof(saddr));
+        cout << "sentBytes: " << sentBytes << endl;
+        if(sentBytes < 0) {
+            cout << "Unable to send PGN " << requestedPgn << ": " << strerror(errno) << endl;
+        }
     }
 }
+
+// string J1939Simulator::assembleACK(const string rawResponse, const uint8_t targetAddress) {
+//     string processedResponse;
+
+//     if(rawResponse.substr(0,3) == "ACK") {
+//         uint8_t 
+//         vector<unsigned char> ackInfo = pEcuScript_->literalHexStrToBytes(rawResponse);
+//         ackInfo.
+//     }
+// }
 
 void J1939Simulator::sendVIN(const uint8_t targetAddress) noexcept
 {
