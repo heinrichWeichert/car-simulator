@@ -35,26 +35,18 @@ J1939Simulator::J1939Simulator(const std::string& device,
                                EcuLuaScript *pEcuScript)
 : device_(device)
 , pEcuScript_(pEcuScript)
+, isOnExit_(false)
 {
     source_address_ = pEcuScript->getJ1939SourceAddress();
 
-    pgns_ = new uint16_t[1];
-
-    // This is just a demo for the getKeys function I implemented into Selene
-    // One could use that to fetch a list of configured PDNs from the lua file
-    cout << "Requests:" << endl;
-    for(auto const &request : pEcuScript_->getRawRequests()) {
-        cout << request << " -> "<< pEcuScript_->getRaw(request) << endl;
+    int err = openReceiver();
+    if (err != 0)
+    {
+        throw exception();
     }
 
-    cout << "PGNs:" << endl;
-    for(auto const &pgn : pEcuScript_->getJ1939PGNs()) {
-        cout << pgn << " -> "<< pEcuScript_->getJ1939PGNData(pgn).payload << endl;
-    }
-
-    j1939ReceiverThread_ = new std::thread(&J1939Simulator::readData, this);
+    j1939ReceiverThread_ = new std::thread(&J1939Simulator::readDataThread, this);
     startPeriodicSenderThreads();
-
 }
 
 void J1939Simulator::stopSimulation()
@@ -83,16 +75,15 @@ J1939Simulator::~J1939Simulator()
 
 void J1939Simulator::startPeriodicSenderThreads()
 {
-    cout << "Fetching PGNs" << endl;
-    vector<string> pgnrequests = pEcuScript_->getJ1939PGNs();
-    cout << "PGNs fetched" << endl;
+    vector<string> pgnDefinitions = pEcuScript_->getJ1939PGNs();
+    cout << "Found " << pgnDefinitions.size() << " PGN definitions in simulation" << endl;
 
-    for (auto pgnrequest : pgnrequests) {
-        size_t separatorPos = pgnrequest.find_first_of('#');
+    for (auto pgnDefinition : pgnDefinitions) {
+        size_t separatorPos = pgnDefinition.find_first_of('#');
         // cyclic sent PGNs or PGNs requested via EA00
         if(separatorPos == string::npos) {
-            cout << "PGN: " << pgnrequest << endl;
-            std::thread *cyclicThread = new std::thread(&J1939Simulator::sendCyclicMessage, this, pgnrequest);
+            cout << "Found PGN " << pgnDefinition << " as cyclic PGN or to be requested via EA00" << endl;
+            std::thread *cyclicThread = new std::thread(&J1939Simulator::sendCyclicMessage, this, pgnDefinition);
             cyclicMessageThreads.push_back(cyclicThread);
         }
     }
@@ -107,39 +98,12 @@ void J1939Simulator::startPeriodicSenderThreads()
  */
 int J1939Simulator::openReceiver() noexcept
 {
-    // see also: https://www.kernel.org/doc/html/latest/networking/j1939.html
-    isOnExit_ = false;
-    struct sockaddr_can addr;
-    addr.can_family = AF_CAN;
-
-    addr.can_addr.j1939.pgn = J1939_NO_PGN; // Receive all PGNs
-    addr.can_addr.j1939.name = J1939_NO_NAME; // Don't do name lookups
-    addr.can_addr.j1939.addr = source_address_; // source address
-
-    int skt = socket(PF_CAN, SOCK_DGRAM, CAN_J1939);
+    int skt = openJ1939Socket(source_address_);
     if (skt < 0)
     {
         cerr << __func__ << "() socket: " << strerror(errno) << '\n';
         return -1;
     }
-
-    struct ifreq ifr;
-    strncpy(ifr.ifr_name, device_.c_str(), device_.length() + 1);
-    ioctl(skt, SIOCGIFINDEX, &ifr);
-    addr.can_ifindex = ifr.ifr_ifindex;
-    int value = 1;
-    setsockopt(skt, SOL_SOCKET, SO_BROADCAST, &value, sizeof(value));
-
-    auto bind_res = bind(skt,
-                         reinterpret_cast<struct sockaddr*> (&addr),
-                         sizeof(addr));
-    if (bind_res < 0)
-    {
-        cerr << __func__ << "() bind: " << strerror(errno) << '\n';
-        close(skt);
-        return -2;
-    }
-
     receive_skt_ = skt;
     return 0;
 }
@@ -168,36 +132,17 @@ void J1939Simulator::closeReceiver() noexcept
  * 
  * @return 0 on success, otherwise a negative value
  */
-int J1939Simulator::readData() noexcept
+int J1939Simulator::readDataThread() noexcept
 {
-    int err = openReceiver();
-    if (err != 0)
-    {
-        throw exception();
-    }
-
     if (receive_skt_ < 0)
     {
         cerr << __func__ << "() Can not read data. J1939 receiver socket invalid!\n";
         return -1;
     }
 
-    sendVIN(0x03);
-
-    // Sending some dummy PGN to see that it works
-    struct sockaddr_can saddr;
-    saddr.can_family = AF_CAN;
-    saddr.can_addr.j1939.name = J1939_NO_NAME;
-    saddr.can_addr.j1939.pgn = 0x12300;
-    saddr.can_addr.j1939.addr = 0x30;
-
-    uint8_t dat[] = {0x01, 0xff, 0xab, 0xa3};
-    sendto(receive_skt_, dat, sizeof(dat), 0, (const struct sockaddr *)&saddr, sizeof(saddr));
-
-    // the actual receive
     uint8_t msg[MAX_BUFSIZE];
     size_t num_bytes;
-
+    struct sockaddr_can saddr = {};
     socklen_t addrlen = sizeof(saddr);
 
     do
@@ -210,7 +155,7 @@ int J1939Simulator::readData() noexcept
 
         if (num_bytes > 0 && num_bytes < MAX_BUFSIZE)
         {
-            proceedReceivedData(msg, num_bytes, saddr.can_addr.j1939.addr, saddr.can_addr.j1939.pgn);
+            processReceivedData(msg, num_bytes, saddr.can_addr.j1939.addr, saddr.can_addr.j1939.pgn);
         }
     }
     while (!isOnExit_);
@@ -223,18 +168,13 @@ int J1939Simulator::readData() noexcept
  * 
  * @see J1939Simulator::readData()
  */
-void J1939Simulator::proceedReceivedData(const uint8_t* buffer, const size_t num_bytes, const uint8_t sourceAddress, const uint32_t pgn) noexcept
+void J1939Simulator::processReceivedData(const uint8_t* buffer, const size_t num_bytes, const uint8_t sourceAddress, const uint32_t pgn) noexcept
 {
-    
     // Print out what we received
     cout << __func__ << "() Received " << dec << num_bytes << " bytes.\n";
     for (size_t i = 0; i < num_bytes; i++)
     {
-        cout << " 0x"
-                << hex
-                << setw(2)
-                << setfill('0')
-                << static_cast<int> (buffer[i]);
+        cout << " 0x" << hex << setw(2) << setfill('0') << static_cast<int> (buffer[i]);
     }
     cout << endl;
 
@@ -259,7 +199,7 @@ void J1939Simulator::proceedReceivedData(const uint8_t* buffer, const size_t num
     saddr.can_addr.j1939.name = J1939_NO_NAME;
     saddr.can_addr.j1939.addr = sourceAddress;
 
-    vector<unsigned char> rawMessage;
+    vector<unsigned char> responsePayload;
 
     if(pgnResponse != "") {
         uint32_t respondingPgn;
@@ -268,37 +208,18 @@ void J1939Simulator::proceedReceivedData(const uint8_t* buffer, const size_t num
         if(separatorPos != string::npos) {
             respondingPgn = parsePGN(pgnResponse.substr(0,separatorPos));
             pgnResponse = pgnResponse.substr(separatorPos + 1, string::npos);
-            rawMessage = pEcuScript_->literalHexStrToBytes(pgnResponse);
+            responsePayload = pEcuScript_->literalHexStrToBytes(pgnResponse);
         } else if(pgnResponse.substr(0,3) == "ACK") {
-            // according to J1939-21, 5.4.4 Acknowledgement
             respondingPgn = 0xE800;
-            vector<unsigned char> ackInfo = 
-                pEcuScript_->literalHexStrToBytes(pgnResponse.substr(3, string::npos));
-            if(ackInfo.size() > 0) { // Control byte
-                rawMessage.push_back(ackInfo[0]);
-            } else {
-                rawMessage.push_back(0x00);
-            }
-            if(ackInfo.size() > 1) { // Group Function Value
-                rawMessage.push_back(ackInfo[1]);
-            } else {
-                rawMessage.push_back(0x00);
-            }
-            rawMessage.push_back(0xFF); // Reserved
-            rawMessage.push_back(0xFF); // Reserved
-            rawMessage.push_back(sourceAddress); // Address Acknowledged
-            rawMessage.push_back((uint8_t)(pgn >> 0)); // PGN of requested information
-            rawMessage.push_back((uint8_t)(pgn >> 8)); // PGN of requested information
-            rawMessage.push_back((uint8_t)(pgn >> 16)); // PGN of requested information
-
             saddr.can_addr.j1939.addr = 0xff;
+            responsePayload = assembleACK(pgnResponse.substr(3, string::npos), sourceAddress, pgn);
         } else {
             respondingPgn = pgn;
-            rawMessage = pEcuScript_->literalHexStrToBytes(pgnResponse);
+            responsePayload = pEcuScript_->literalHexStrToBytes(pgnResponse);
         }
         saddr.can_addr.j1939.pgn = respondingPgn;
 
-        sendto(receive_skt_, rawMessage.data(), rawMessage.size(), 0, (const struct sockaddr *)&saddr, sizeof(saddr));
+        sendJ1939Message(receive_skt_, saddr, responsePayload);
     } else if(pgn == 0xEA00) {
         uint32_t requestedPgn = parsePGN(pgnRequestPayload);
         cout << "Requested PGN: " << requestedPgn << endl;
@@ -306,42 +227,51 @@ void J1939Simulator::proceedReceivedData(const uint8_t* buffer, const size_t num
         string pgnResponse = pEcuScript_->getJ1939PGNData(pgnRequestPayload).payload;
         cout << "-> Response: " << pgnResponse << endl;
 
-        vector<unsigned char> rawMessage = pEcuScript_->literalHexStrToBytes(pgnResponse);
-        ssize_t sentBytes = sendto(receive_skt_, rawMessage.data(), rawMessage.size(), 0, (const struct sockaddr *)&saddr, sizeof(saddr));
-        cout << "sentBytes: " << sentBytes << endl;
-        if(sentBytes < 0) {
-            cout << "Unable to send PGN " << requestedPgn << ": " << strerror(errno) << endl;
-        }
+        responsePayload = pEcuScript_->literalHexStrToBytes(pgnResponse);
+        sendJ1939Message(receive_skt_, saddr, responsePayload);
     }
 }
 
-// string J1939Simulator::assembleACK(const string rawResponse, const uint8_t targetAddress) {
-//     string processedResponse;
-
-//     if(rawResponse.substr(0,3) == "ACK") {
-//         uint8_t 
-//         vector<unsigned char> ackInfo = pEcuScript_->literalHexStrToBytes(rawResponse);
-//         ackInfo.
-//     }
-// }
-
-void J1939Simulator::sendVIN(const uint8_t targetAddress) noexcept
+ssize_t J1939Simulator::sendJ1939Message(int skt, struct sockaddr_can saddr, vector<unsigned char> payload) noexcept
 {
-    cout << "Sending VIN" << endl;
-    // Sending some dummy PGN to see that it works
-    struct sockaddr_can saddr = {};
-    saddr.can_family = AF_CAN;
-    saddr.can_addr.j1939.name = J1939_NO_NAME;
-    saddr.can_addr.j1939.pgn = 0x0feec;
-    saddr.can_addr.j1939.addr = targetAddress;
-
-    uint8_t dat[] = {0x01, 0xff, 0xab, 0xa3, 0xfe, 0x23, 0x17, 0x22, 0x9f};
-    if(sendto(receive_skt_, dat, sizeof(dat), 0, (const struct sockaddr *)&saddr, sizeof(saddr)) < 0)
-    {
-        cout << "Error sending VIN: " << strerror(errno) << endl;
+    ssize_t sentBytes = sendto(skt, payload.data(), payload.size(), 0, (const struct sockaddr *)&saddr, sizeof(saddr));
+    cout << "sentBytes: " << sentBytes << endl;
+    if(sentBytes < 0) {
+        cout << "Unable to send PGN " << saddr.can_addr.j1939.pgn << ": " << strerror(errno) << endl;
     }
+    return sentBytes;
+}
 
-    cout << "VIN sent" << endl;
+/**
+ * @brief Put together ACK message according to J1939-21, 5.4.4 Acknowledgement
+ * 
+ * @param ackInfoByteString 
+ * @param targetAddress 
+ * @param pgn 
+ * @return vector<unsigned char> 
+ */
+vector<unsigned char> J1939Simulator::assembleACK(const string ackInfoByteString, const uint8_t targetAddress, const uint32_t pgn) {
+    vector<unsigned char> rawMessage;
+
+    vector<unsigned char> ackInfo = 
+        pEcuScript_->literalHexStrToBytes(ackInfoByteString);
+    if(ackInfo.size() > 0) { // Control byte
+        rawMessage.push_back(ackInfo[0]);
+    } else {
+        rawMessage.push_back(0x00);
+    }
+    if(ackInfo.size() > 1) { // Group Function Value
+        rawMessage.push_back(ackInfo[1]);
+    } else {
+        rawMessage.push_back(0x00);
+    }
+    rawMessage.push_back(0xFF); // Reserved
+    rawMessage.push_back(0xFF); // Reserved
+    rawMessage.push_back(targetAddress); // Address Acknowledged
+    rawMessage.push_back((uint8_t)(pgn >> 0)); // PGN of requested information
+    rawMessage.push_back((uint8_t)(pgn >> 8)); // PGN of requested information
+    rawMessage.push_back((uint8_t)(pgn >> 16)); // PGN of requested information
+    return rawMessage;
 }
 
 void J1939Simulator::sendCyclicMessage(const string pgn) noexcept
@@ -366,7 +296,7 @@ void J1939Simulator::sendCyclicMessage(const string pgn) noexcept
         }
 
         if(isBusActive()) {
-            int sendSkt = openBroadcastSocket();
+            int sendSkt = openCyclicSendSocket();
 
             int retries = 5;
             while(retries > 0)
@@ -459,24 +389,33 @@ uint32_t J1939Simulator::parsePGN(string pgn) const noexcept
  *
  * @return socket
  */
-int J1939Simulator::openBroadcastSocket() const noexcept
+int J1939Simulator::openCyclicSendSocket() const noexcept
+{
+    return openJ1939Socket(source_address_);
+}
+
+/**
+ * Opens a socket for sending/receiving J1939 PGNs
+ *
+ * @return 0 on success, otherwise a negative value
+ */
+int J1939Simulator::openJ1939Socket(const uint8_t node_address) const noexcept
 {
     // see also: https://www.kernel.org/doc/html/latest/networking/j1939.html
-    struct sockaddr_can addr;
+    struct sockaddr_can addr = {};
     addr.can_family = AF_CAN;
-
     addr.can_addr.j1939.pgn = J1939_NO_PGN; // Receive all PGNs
     addr.can_addr.j1939.name = J1939_NO_NAME; // Don't do name lookups
-    addr.can_addr.j1939.addr = source_address_; // source address
+    addr.can_addr.j1939.addr = node_address; // source address
 
     int skt = socket(PF_CAN, SOCK_DGRAM, CAN_J1939);
     if (skt < 0)
     {
-        cerr << __func__ << "() socket: " << strerror(errno) << endl;
+        cerr << __func__ << "() socket: " << strerror(errno) << '\n';
         return -1;
     }
 
-    struct ifreq ifr;
+    struct ifreq ifr = {};
     strncpy(ifr.ifr_name, device_.c_str(), device_.length() + 1);
     ioctl(skt, SIOCGIFINDEX, &ifr);
     addr.can_ifindex = ifr.ifr_ifindex;

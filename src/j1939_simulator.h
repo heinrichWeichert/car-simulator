@@ -8,11 +8,15 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 #include <memory>
 #include <thread>
 
 #include "ecu_lua_script.h"
 
+constexpr uint32_t J1939_PGN_REQUESTPGN = 0xEA00;
+constexpr uint32_t J1939_PGN_ACKPGN = 0xE800;
+constexpr uint8_t J1939_BROADCAST_ID = 0xFF;
 
 class J1939Simulator
 {
@@ -26,10 +30,10 @@ public:
     virtual ~J1939Simulator();
     int openReceiver() noexcept;
     void closeReceiver() noexcept;
-    int readData() noexcept;
+    int readDataThread() noexcept;
     void startPeriodicSenderThreads();
-    void proceedReceivedData(const uint8_t* buffer, const size_t num_bytes, const uint8_t sourceAddress, const uint32_t pgn) noexcept;
-    void sendVIN(const uint8_t targetAddress) noexcept;
+    void processReceivedData(const uint8_t* buffer, const size_t num_bytes, const uint8_t sourceAddress, const uint32_t pgn) noexcept;
+    std::vector<unsigned char> assembleACK(const std::string ackInfoByteString, const uint8_t targetAddress, const uint32_t pgn);
     void sendCyclicMessage(const std::string pgn) noexcept;
 
     void stopSimulation();
@@ -48,7 +52,10 @@ private:
     sel::State lua_state_;
     uint16_t *pgns_;
 
-    int openBroadcastSocket() const noexcept;
+    int openCyclicSendSocket() const noexcept;
+    int openJ1939Socket(const uint8_t node_address) const noexcept;
+    ssize_t sendJ1939Message(int skt, struct sockaddr_can saddr, std::vector<unsigned char> payload) noexcept;
+
     uint32_t parsePGN(std::string pgn) const noexcept;
     bool isBusActive();
 
