@@ -153,7 +153,7 @@ int J1939Simulator::readDataThread() noexcept
         cout << "Message received from: " << hex << (unsigned short)saddr.can_addr.j1939.addr << dec << endl;
         cout << " -> PGN: " << hex << (unsigned short)saddr.can_addr.j1939.pgn << dec << endl;
 
-        if (num_bytes > 0 && num_bytes < MAX_BUFSIZE)
+        if (num_bytes >= 0 && num_bytes < MAX_BUFSIZE)
         {
             processReceivedData(msg, num_bytes, saddr.can_addr.j1939.addr, saddr.can_addr.j1939.pgn);
         }
@@ -178,21 +178,20 @@ void J1939Simulator::processReceivedData(const uint8_t* buffer, const size_t num
     }
     cout << endl;
 
-    string pgnRequest = "";
+    string pgnString = "";
     
     uint8_t pgnBuffer[3];
     pgnBuffer[0] = (uint8_t)(pgn >> 0);
     pgnBuffer[1] = (uint8_t)(pgn >> 8);
     pgnBuffer[2] = (uint8_t)(pgn >> 16);
-    pgnRequest += pEcuScript_->intToHexString(pgnBuffer, sizeof(pgnBuffer));
-    pgnRequest += " # ";
+    pgnString += pEcuScript_->intToHexString(pgnBuffer, sizeof(pgnBuffer));
+    pgnString += " #";
     string pgnRequestPayload = pEcuScript_->intToHexString(buffer, num_bytes);
-    pgnRequest += pgnRequestPayload;
 
-    cout << "Looking for PGN request: " << pgnRequest << endl;
+    cout << "Looking for PGN " << pgnString << " - Payload: " << pgnRequestPayload << endl;
 
-    string pgnResponse = pEcuScript_->getJ1939PGNData(pgnRequest).payload;
-    cout << "-> Response: " << pEcuScript_->getJ1939PGNData(pgnRequest).payload << endl;
+    string pgnResponse = pEcuScript_->getJ1939PGNData(pgnString, pgnRequestPayload).payload;
+    cout << "-> Response: " << pgnResponse << endl;
 
     struct sockaddr_can saddr = {};
     saddr.can_family = AF_CAN;
