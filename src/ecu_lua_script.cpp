@@ -516,7 +516,7 @@ vector<string> EcuLuaScript::getJ1939PGNs()
 /**
  * Build a RequestByteTree from the PGN table in the current simulation
  */
-shared_ptr<RequestByteTreeNode<Selector>> EcuLuaScript::buildRequestByteTreeFromPGNTable() {
+shared_ptr<RequestByteTreeNode<Selector*>> EcuLuaScript::buildRequestByteTreeFromPGNTable() {
     const std::lock_guard<std::mutex> lock(luaLock_);
 
     cout << "Get PGN request tree from ident: " << ecu_ident_ << endl;
@@ -528,24 +528,24 @@ shared_ptr<RequestByteTreeNode<Selector>> EcuLuaScript::buildRequestByteTreeFrom
         requestKeys = vector<string>();
     }
 
-    remove_if(requestKeys.begin(), requestKeys.end(),
-        [](string &x){return x.find('#') != string::npos;}
-    );
+    requestKeys.erase(remove_if(requestKeys.begin(), requestKeys.end(),
+        [](string &x){return x.find('#') == string::npos;}
+    ), requestKeys.end());
 
-    shared_ptr<RequestByteTreeNode<Selector>> requestByteTree(new RequestByteTreeNode<Selector>());
+    shared_ptr<RequestByteTreeNode<Selector*>> requestByteTree(new RequestByteTreeNode<Selector*>());
     for(vector<string>::iterator requestIter = requestKeys.begin(); requestIter != requestKeys.end(); requestIter++)
     {
         string requestStringRaw = *requestIter;
-        string requestString;
-        remove_copy_if(requestStringRaw.begin(), requestStringRaw.end(), requestString.begin(),
+        string requestString = requestStringRaw;
+        requestString.erase(remove_if(requestString.begin(), requestString.end(),
             [](char &x){return string("_.,; #\t").find(x) != string::npos;}
-        );
+        ), requestString.end());
         
         Selector response = pgnTable[requestStringRaw];
 
         try {
             auto requestByteLeaf = addRequestToTree(requestByteTree, requestString);
-            requestByteLeaf->setLuaResponse(response);
+            requestByteLeaf->setLuaResponse(&response);
         } catch(exception &e) {
             cerr << "Ignoring invalid request '" << requestStringRaw << "': " << e.what();
         }
@@ -594,30 +594,31 @@ J1939PGNData EcuLuaScript::getJ1939RequestPGNData(const std::string& pgn)
 
 }
 
-string EcuLuaScript::getJ1939Response(const shared_ptr<RequestByteTreeNode<Selector>> requestByteTree, const uint32_t pgn, const uint8_t *payload, const uint32_t payloadLength)
+string EcuLuaScript::getJ1939Response(const shared_ptr<RequestByteTreeNode<Selector*>> requestByteTree, const uint32_t pgn, const uint8_t *payload, const uint32_t payloadLength)
 {
     const std::lock_guard<std::mutex> lock(luaLock_);
     string response;
 
     vector<uint8_t> lookupPayload(3 + payloadLength);
-    lookupPayload.push_back((uint8_t)(pgn >> 0));
-    lookupPayload.push_back((uint8_t)(pgn >> 8));
-    lookupPayload.push_back((uint8_t)(pgn >> 16));
+    lookupPayload[0] = (uint8_t)(pgn >> 0);
+    lookupPayload[1] = (uint8_t)(pgn >> 8);
+    lookupPayload[2] = (uint8_t)(pgn >> 16);
 
     for(uint32_t i = 0; i < payloadLength; i++) {
-        lookupPayload.push_back(payload[i]);
+        lookupPayload[i+3] = payload[i];
     }
 
     auto val = getValueFromTree(requestByteTree, lookupPayload);
 
     if(val.has_value() == true) {
-        if (val->isFunction())
+        Selector *luaResp = *val;
+        if (luaResp->isFunction())
         {
-            response = val.value()(intToHexString(payload, payloadLength)).toString();
+            response = (*luaResp)(intToHexString(payload, payloadLength)).toString();
         }
         else
         {
-            response = val->toString();
+            response = luaResp->toString();
         } 
     }
 

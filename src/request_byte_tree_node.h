@@ -83,13 +83,15 @@ private:
 	uint32_t placeholderCount;
 	uint32_t requestLength;
 	bool wildcard;
-	
 
+	const shared_ptr<RequestByteTreeNode<T>> self;
+	
 public:	
 	RequestByteTreeNode(uint32_t placeholderCount = 0, uint32_t requestLength = 0) :
         luaResponse(nullopt),
         placeholderCount(placeholderCount),
-		requestLength(requestLength) {}
+		requestLength(requestLength),
+		self(this) {}
     
     RequestByteTreeNode(RequestByteTreeNode<T> &rbt) {
 		cerr << "Copy Constructor of RequestByteTreeNode must not be called!" << endl;
@@ -154,9 +156,9 @@ public:
 		return nextElement;
 	}
 	
-	inline shared_ptr<RequestByteTreeNode<T>> setLuaResponse(T &luaResponse) {
+	inline shared_ptr<RequestByteTreeNode<T>> setLuaResponse(T luaResponse) {
 		this->luaResponse.emplace(luaResponse);
-		return shared_ptr<RequestByteTreeNode<T>>(this);
+		return self;
 	}
 
 };

@@ -66,7 +66,7 @@ public:
     std::vector<std::string> getRawRequests();
     std::vector<std::string> getJ1939PGNs();
     J1939PGNData getJ1939RequestPGNData(const std::string& pgn);
-    string getJ1939Response(const shared_ptr<RequestByteTreeNode<Selector>> requestByteTree, const uint32_t pgn, const uint8_t *payload, const uint32_t payloadLength);
+    string getJ1939Response(const shared_ptr<RequestByteTreeNode<Selector*>> requestByteTree, const uint32_t pgn, const uint8_t *payload, const uint32_t payloadLength);
 
     std::string getRaw(const std::string& identStr);
     bool hasRaw(const std::string& identStr);
@@ -89,7 +89,7 @@ public:
 
     template<class T>
 	optional<T> getValueFromTree(const shared_ptr<RequestByteTreeNode<T>> requestByteTree, const vector<uint8_t> payload);
-	shared_ptr<RequestByteTreeNode<sel::Selector>> buildRequestByteTreeFromPGNTable();
+	shared_ptr<RequestByteTreeNode<sel::Selector*>> buildRequestByteTreeFromPGNTable();
 
 private:
     sel::State lua_state_{true};
