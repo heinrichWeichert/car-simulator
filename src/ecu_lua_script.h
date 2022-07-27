@@ -65,7 +65,8 @@ public:
     std::string getDataByIdentifier(const std::string& identifier, const std::string& session);
     std::vector<std::string> getRawRequests();
     std::vector<std::string> getJ1939PGNs();
-    J1939PGNData getJ1939PGNData(const std::string& pgn, const std::string& payload = "");
+    J1939PGNData getJ1939RequestPGNData(const std::string& pgn);
+    string getJ1939Response(const shared_ptr<RequestByteTreeNode<Selector>> requestByteTree, const uint32_t pgn, const uint8_t *payload, const uint32_t payloadLength);
 
     std::string getRaw(const std::string& identStr);
     bool hasRaw(const std::string& identStr);
@@ -86,8 +87,9 @@ public:
 
     std::string intToHexString(const uint8_t* buffer, const std::size_t num_bytes);
 
-	optional<sel::Selector> getValueFromTree(const uint8_t *request, uint32_t requestLength, const shared_ptr<RequestByteTreeNode> requestByteTree);
-	shared_ptr<RequestByteTreeNode> buildRequestByteTree(sel::Selector &requestTable);
+    template<class T>
+	optional<T> getValueFromTree(const shared_ptr<RequestByteTreeNode<T>> requestByteTree, const vector<uint8_t> payload);
+	shared_ptr<RequestByteTreeNode<sel::Selector>> buildRequestByteTreeFromPGNTable();
 
 private:
     sel::State lua_state_{true};
@@ -104,10 +106,14 @@ private:
     std::uint8_t j1939SourceAddress_;
     std::mutex luaLock_;
 
-    void findAndAddMatchesForNextByte(set<shared_ptr<RequestByteTreeNode>> &matchingNodes, shared_ptr<RequestByteTreeNode> currentByte, uint8_t nextByte);
-	shared_ptr<RequestByteTreeNode> findBestMatchingRequest(set<shared_ptr<RequestByteTreeNode>> &potentiallyMatchingRequests);
-	shared_ptr<RequestByteTreeNode> getThisOrNextWildcardWithResponse(shared_ptr<RequestByteTreeNode> requestByteNode);
-	shared_ptr<RequestByteTreeNode> addRequestToTree(shared_ptr<RequestByteTreeNode> requestByteTree, string &requestString);
+    template<class T>
+    void findAndAddMatchesForNextByte(set<shared_ptr<RequestByteTreeNode<T>>> &matchingNodes, shared_ptr<RequestByteTreeNode<T>> currentByte, uint8_t nextByte);
+	template<class T>
+    shared_ptr<RequestByteTreeNode<T>> findBestMatchingRequest(set<shared_ptr<RequestByteTreeNode<T>>> &potentiallyMatchingRequests);
+	template<class T>
+    shared_ptr<RequestByteTreeNode<T>> getThisOrNextWildcardWithResponse(shared_ptr<RequestByteTreeNode<T>> requestByteNode);
+	template<class T>
+    shared_ptr<RequestByteTreeNode<T>> addRequestToTree(shared_ptr<RequestByteTreeNode<T>> requestByteTree, string &requestString);
 
 };
 

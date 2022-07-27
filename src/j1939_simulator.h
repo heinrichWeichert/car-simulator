@@ -48,6 +48,7 @@ private:
     bool isOnExit_ = false;
     std::thread *j1939ReceiverThread_;
     std::vector<std::thread*> cyclicMessageThreads;
+    shared_ptr<RequestByteTreeNode<Selector>> requestByteTree;
 
     sel::State lua_state_;
     uint16_t *pgns_;

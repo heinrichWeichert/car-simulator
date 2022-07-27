@@ -47,7 +47,7 @@ using namespace sel;
  * the tree to find the matching response "response5"
  *
  */
-class RequestByteTreeNode;
+template<class T>
 class RequestByteTreeNode {
 
 private:	
@@ -57,7 +57,7 @@ private:
 	 * this object represents byte at position 0 (i.e. 22), then the map contains
 	 * entries for F1 and 17.  
 	 */
-	map<uint8_t, shared_ptr<RequestByteTreeNode>> subsequentByte;
+	map<uint8_t, shared_ptr<RequestByteTreeNode<T>>> subsequentByte;
 
 	/**
 	 * Points to following placeholder or wildcard entry respectively.
@@ -65,8 +65,8 @@ private:
 	 * into the map that represents placeholder and wildcard, we use separate
 	 * fields for them. This avoids converting between byte and short.
 	 */
-	shared_ptr<RequestByteTreeNode> subsequentPlaceholder;
-	shared_ptr<RequestByteTreeNode> subsequentWildcard;
+	shared_ptr<RequestByteTreeNode<T>> subsequentPlaceholder;
+	shared_ptr<RequestByteTreeNode<T>> subsequentWildcard;
 	
 	/**
 	 * Stores the actual rvalue from the lua map in case there is any
@@ -75,7 +75,7 @@ private:
 	 * is stored in this object, if it represents position 0 or 1 the response
 	 * is empty. 
 	 */
-	optional<Selector> luaResponse;
+	optional<T> luaResponse;
 	
 	/**
 	 * Meta information to determine best matching request 
@@ -91,28 +91,28 @@ public:
         placeholderCount(placeholderCount),
 		requestLength(requestLength) {}
     
-    RequestByteTreeNode(RequestByteTreeNode &rbt) {
+    RequestByteTreeNode(RequestByteTreeNode<T> &rbt) {
 		cerr << "Copy Constructor of RequestByteTreeNode must not be called!" << endl;
         throw exception();
     }
-	
-	inline shared_ptr<RequestByteTreeNode> getSubsequentByte(uint8_t requestByte) {
-        map<uint8_t, shared_ptr<RequestByteTreeNode>>::const_iterator iter = subsequentByte.find(requestByte);
+
+	inline shared_ptr<RequestByteTreeNode<T>> getSubsequentByte(uint8_t requestByte) {
+        typename map<uint8_t, shared_ptr<RequestByteTreeNode<T>>>::const_iterator iter = subsequentByte.find(requestByte);
 		if(iter != subsequentByte.end()) {
 			return iter->second;
 		}
 		return nullptr;
 	}
-	
-	inline optional<Selector> &getLuaResponse() {
+
+	inline optional<T> &getLuaResponse() {
 		return luaResponse;
 	}
 	
-	inline shared_ptr<RequestByteTreeNode> getSubsequentPlaceholder() {
+	inline shared_ptr<RequestByteTreeNode<T>> getSubsequentPlaceholder() {
 		return subsequentPlaceholder;
 	}
 
-	inline shared_ptr<RequestByteTreeNode> getSubsequentWildcard() {
+	inline shared_ptr<RequestByteTreeNode<T>> getSubsequentWildcard() {
 		return subsequentWildcard;
 	}
 
@@ -129,34 +129,34 @@ public:
 	}	
 	
 	// Builder Methods
-	inline shared_ptr<RequestByteTreeNode> appendByte(uint8_t requestByte) {
-        subsequentByte.emplace(requestByte, shared_ptr<RequestByteTreeNode>(new RequestByteTreeNode(placeholderCount, requestLength + 1)));
+	inline shared_ptr<RequestByteTreeNode<T>> appendByte(uint8_t requestByte) {
+        subsequentByte.emplace(requestByte, shared_ptr<RequestByteTreeNode<T>>(new RequestByteTreeNode<T>(placeholderCount, requestLength + 1)));
 		return subsequentByte[requestByte];
 	}
 	
-	inline shared_ptr<RequestByteTreeNode> appendWildcard() {
+	inline shared_ptr<RequestByteTreeNode<T>> appendWildcard() {
 		if(subsequentWildcard) {
 			cerr << "Same request with Wildcard already exists" << endl;
 			throw exception();
 		}
-		subsequentWildcard.reset(new RequestByteTreeNode(placeholderCount, requestLength + 1));
-		shared_ptr<RequestByteTreeNode> nextElement = subsequentWildcard;
+		subsequentWildcard.reset(new RequestByteTreeNode<T>(placeholderCount, requestLength + 1));
+		shared_ptr<RequestByteTreeNode<T>> nextElement = subsequentWildcard;
 		nextElement->wildcard = true;
 		return nextElement;
 	}
 
-	inline shared_ptr<RequestByteTreeNode> appendPlaceholder() {
+	inline shared_ptr<RequestByteTreeNode<T>> appendPlaceholder() {
 		if(!subsequentPlaceholder) {
-			subsequentPlaceholder.reset(new RequestByteTreeNode(placeholderCount + 1, requestLength + 1));
+			subsequentPlaceholder.reset(new RequestByteTreeNode<T>(placeholderCount + 1, requestLength + 1));
 		}
-		shared_ptr<RequestByteTreeNode> nextElement = subsequentPlaceholder;
+		shared_ptr<RequestByteTreeNode<T>> nextElement = subsequentPlaceholder;
 		nextElement->placeholderCount = this->placeholderCount + 1;
 		return nextElement;
 	}
 	
-	inline shared_ptr<RequestByteTreeNode> setLuaResponse(Selector &luaResponse) {
+	inline shared_ptr<RequestByteTreeNode<T>> setLuaResponse(T &luaResponse) {
 		this->luaResponse.emplace(luaResponse);
-		return shared_ptr<RequestByteTreeNode>(this);
+		return shared_ptr<RequestByteTreeNode<T>>(this);
 	}
 
 };

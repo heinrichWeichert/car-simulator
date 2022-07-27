@@ -513,26 +513,59 @@ vector<string> EcuLuaScript::getJ1939PGNs()
     }
 }
 
-J1939PGNData EcuLuaScript::getJ1939PGNData(const string& pgn, const string& payload)
-{
+/**
+ * Build a RequestByteTree from the PGN table in the current simulation
+ */
+shared_ptr<RequestByteTreeNode<Selector>> EcuLuaScript::buildRequestByteTreeFromPGNTable() {
     const std::lock_guard<std::mutex> lock(luaLock_);
 
+    cout << "Get PGN request tree from ident: " << ecu_ident_ << endl;
+    auto pgnTable = lua_state_[ecu_ident_.c_str()][J1939_PGN_TABLE];
+    vector<string> requestKeys;
+    if(pgnTable.exists()) {
+        requestKeys = pgnTable.getKeys();
+    } else {
+        requestKeys = vector<string>();
+    }
+
+    remove_if(requestKeys.begin(), requestKeys.end(),
+        [](string &x){return x.find('#') != string::npos;}
+    );
+
+    shared_ptr<RequestByteTreeNode<Selector>> requestByteTree(new RequestByteTreeNode<Selector>());
+    for(vector<string>::iterator requestIter = requestKeys.begin(); requestIter != requestKeys.end(); requestIter++)
+    {
+        string requestStringRaw = *requestIter;
+        string requestString;
+        remove_copy_if(requestStringRaw.begin(), requestStringRaw.end(), requestString.begin(),
+            [](char &x){return string("_.,; #\t").find(x) != string::npos;}
+        );
+        
+        Selector response = pgnTable[requestStringRaw];
+
+        try {
+            auto requestByteLeaf = addRequestToTree(requestByteTree, requestString);
+            requestByteLeaf->setLuaResponse(response);
+        } catch(exception &e) {
+            cerr << "Ignoring invalid request '" << requestStringRaw << "': " << e.what();
+        }
+    }
+		
+	return requestByteTree;
+}
+
+J1939PGNData EcuLuaScript::getJ1939RequestPGNData(const std::string& pgn)
+{
+    cout << "Looking for requested PGN: " << pgn << endl;
     J1939PGNData pgnData;
     pgnData.cycleTime = 0;
 
-    string pgnLookup = pgn;
-    if(payload != "") {
-        pgnLookup = pgnLookup + " " + payload;
-    }
-
-    cout << "Looking for PGN: " << pgnLookup << endl;
-    auto val = lua_state_[ecu_ident_.c_str()][J1939_PGN_TABLE][pgnLookup.c_str()];
-    cout << "Checking PGN value: " << pgnLookup << endl;
+    auto val = lua_state_[ecu_ident_.c_str()][J1939_PGN_TABLE][pgn.c_str()];
     if(val.exists() == true) {
-        cout << "Found PGN: " << pgnLookup << endl;
+        cout << "Found PGN: " << pgn << endl;
         if (val.isFunction())
         {
-            pgnData.payload = val(pgnLookup).toString();
+            pgnData.payload = val().toString();
         }
         else if(val.isTable())
         {
@@ -544,7 +577,7 @@ J1939PGNData EcuLuaScript::getJ1939PGNData(const string& pgn, const string& payl
             if(pgnPayload.exists() == true) {
                 if(pgnPayload.isFunction())
                 {
-                    pgnData.payload = pgnPayload(payload).toString();
+                    pgnData.payload = pgnPayload().toString();
                 }
                 else
                 {
@@ -555,37 +588,40 @@ J1939PGNData EcuLuaScript::getJ1939PGNData(const string& pgn, const string& payl
         else
         {
             pgnData.payload = val.toString(); // will be cast into string
-        } 
-    } else { // TODO: This will be replaced with a proper wildcard and placeholder matching
-        string pgnRequestPayloadWorking = "";
-        string payloadTmp = payload + " ";
-        //offset for the first byte
-        int counter = 0;
-        while(val.exists() == false && pgnRequestPayloadWorking.length() < payloadTmp.length()){
-            //appends wildcard sign after the bytes that are tested
-            pgnRequestPayloadWorking = payloadTmp.substr(0,counter).append("*");
-            string pgnLookupWorking = pgn + " " + pgnRequestPayloadWorking;
-            cout << "Looking for: '" << pgnLookupWorking << "'" << endl;
-            val = lua_state_[ecu_ident_.c_str()][J1939_PGN_TABLE][pgnLookupWorking.c_str()];
-            //counter + blank + bytelength
-            counter = counter + 3;
-        }
-        if (val.isFunction())
-        {
-            //call the function with the originally given argument
-            pgnData.payload = val(payload).toString();
-        }
-        else if(val.exists() == true)
-        {
-            pgnData.payload = val.toString();
-        } 
-        else
-        {
-            cerr << "Unknown PGN: " << pgnLookup << endl;
         }
     }
-
     return pgnData;
+
+}
+
+string EcuLuaScript::getJ1939Response(const shared_ptr<RequestByteTreeNode<Selector>> requestByteTree, const uint32_t pgn, const uint8_t *payload, const uint32_t payloadLength)
+{
+    const std::lock_guard<std::mutex> lock(luaLock_);
+    string response;
+
+    vector<uint8_t> lookupPayload(3 + payloadLength);
+    lookupPayload.push_back((uint8_t)(pgn >> 0));
+    lookupPayload.push_back((uint8_t)(pgn >> 8));
+    lookupPayload.push_back((uint8_t)(pgn >> 16));
+
+    for(uint32_t i = 0; i < payloadLength; i++) {
+        lookupPayload.push_back(payload[i]);
+    }
+
+    auto val = getValueFromTree(requestByteTree, lookupPayload);
+
+    if(val.has_value() == true) {
+        if (val->isFunction())
+        {
+            response = val.value()(intToHexString(payload, payloadLength)).toString();
+        }
+        else
+        {
+            response = val->toString();
+        } 
+    }
+
+    return response;
 }
 
 /**
@@ -709,14 +745,17 @@ string EcuLuaScript::intToHexString(const uint8_t* buffer, const size_t num_byte
 	 * See {@link RequestByteTreeNode} to see how the tree works
 	 * 
 	 */
-	optional<Selector> EcuLuaScript::getValueFromTree(const uint8_t *request, uint32_t requestLength, const shared_ptr<RequestByteTreeNode> requestByteTree) {
-		set<shared_ptr<RequestByteTreeNode>> potentiallyMatchingRequests;
+    template<class T>
+	optional<T> EcuLuaScript::getValueFromTree(const shared_ptr<RequestByteTreeNode<T>> requestByteTree, const vector<uint8_t> payload) {
+		set<shared_ptr<RequestByteTreeNode<T>>> potentiallyMatchingRequests;
 		potentiallyMatchingRequests.insert(requestByteTree);
 		
-        for(uint32_t i = 0; i < requestLength && !potentiallyMatchingRequests.empty(); i++) {
-			uint8_t nextByte = request[i];
-			set<shared_ptr<RequestByteTreeNode>> matchingNodes;
-			for (set<shared_ptr<RequestByteTreeNode>>::iterator reqIter = potentiallyMatchingRequests.begin();
+        for(auto nextByte : payload) {
+            if(potentiallyMatchingRequests.empty()) {
+                break;
+            }
+			set<shared_ptr<RequestByteTreeNode<T>>> matchingNodes;
+			for (typename set<shared_ptr<RequestByteTreeNode<T>>>::iterator reqIter = potentiallyMatchingRequests.begin();
                     reqIter != potentiallyMatchingRequests.end(); reqIter++) {
                 auto crntRequestByte = *reqIter;
 				if(crntRequestByte->isWildcard()) {
@@ -735,8 +774,9 @@ string EcuLuaScript::intToHexString(const uint8_t* buffer, const size_t num_byte
 		return {};
 	}
 
-	void EcuLuaScript::findAndAddMatchesForNextByte(set<shared_ptr<RequestByteTreeNode>> &matchingNodes, shared_ptr<RequestByteTreeNode> currentByte, uint8_t nextByte) {
-		shared_ptr<RequestByteTreeNode> crntByteTreeOpt;
+    template<class T>
+	void EcuLuaScript::findAndAddMatchesForNextByte(set<shared_ptr<RequestByteTreeNode<T>>> &matchingNodes, shared_ptr<RequestByteTreeNode<T>> currentByte, uint8_t nextByte) {
+		shared_ptr<RequestByteTreeNode<T>> crntByteTreeOpt;
 		crntByteTreeOpt = currentByte->getSubsequentByte(nextByte);
 		if(crntByteTreeOpt) {
 			matchingNodes.insert(crntByteTreeOpt);
@@ -762,8 +802,9 @@ string EcuLuaScript::intToHexString(const uint8_t* buffer, const size_t num_byte
 	 * @param potentiallyMatchingRequests
 	 * @return
 	 */
-   	shared_ptr<RequestByteTreeNode> EcuLuaScript::findBestMatchingRequest(set<shared_ptr<RequestByteTreeNode>> &potentiallyMatchingRequests) {
-		shared_ptr<RequestByteTreeNode> bestMatchingRequest;
+    template<class T>
+   	shared_ptr<RequestByteTreeNode<T>> EcuLuaScript::findBestMatchingRequest(set<shared_ptr<RequestByteTreeNode<T>>> &potentiallyMatchingRequests) {
+		shared_ptr<RequestByteTreeNode<T>> bestMatchingRequest;
 		for (auto matchingRequestItem : potentiallyMatchingRequests) {
 			auto matchingRequest = getThisOrNextWildcardWithResponse(matchingRequestItem);
 			if(!matchingRequest->getLuaResponse()) {
@@ -790,44 +831,12 @@ string EcuLuaScript::intToHexString(const uint8_t* buffer, const size_t num_byte
 	 * @param requestByteNode
 	 * @return
 	 */
-	shared_ptr<RequestByteTreeNode> EcuLuaScript::getThisOrNextWildcardWithResponse(shared_ptr<RequestByteTreeNode> requestByteNode) {
+    template<class T>
+	shared_ptr<RequestByteTreeNode<T>> EcuLuaScript::getThisOrNextWildcardWithResponse(shared_ptr<RequestByteTreeNode<T>> requestByteNode) {
 		if(!requestByteNode->getLuaResponse()) {
 			return (requestByteNode->getSubsequentWildcard() ? requestByteNode->getSubsequentWildcard() : requestByteNode);
 		}
 		return requestByteNode;
-	}
-	
-	/**
-	 * Build a RequestByteTree from the given lua table
-	 * @param requestTable lua table containing request/response mappings
-	 */
-	shared_ptr<RequestByteTreeNode> EcuLuaScript::buildRequestByteTree(Selector &requestTable) {
-        vector<string> requestKeys;
-        if(requestTable.exists()) {
-            requestKeys = requestTable.getKeys();
-        } else {
-            requestKeys = vector<string>();
-        }
-
-		shared_ptr<RequestByteTreeNode> requestByteTree(new RequestByteTreeNode());
-		for(vector<string>::iterator requestIter = requestKeys.begin(); requestIter != requestKeys.end(); requestIter++)
-        {
-			string requestStringRaw = *requestIter;
-			string requestString;
-            remove_copy_if(requestStringRaw.begin(), requestStringRaw.end(), requestString.begin(),
-                [](char &x){return string("_.,; \t").find(x) != string::npos;}
-            );
-			Selector response = requestTable[requestStringRaw];
-			
-			try {
-				auto requestByteLeaf = addRequestToTree(requestByteTree, requestString);
-				requestByteLeaf->setLuaResponse(response);
-			} catch(exception &e) {
-				cerr << "Ignoring invalid request '" << requestStringRaw << "': " << e.what();
-			}
-		}
-		
-		return requestByteTree;
 	}
 
 	/**
@@ -837,7 +846,8 @@ string EcuLuaScript::intToHexString(const uint8_t* buffer, const size_t num_byte
 	 * @param requestString The normalized (i.e. without spaces and other separators) string representation of the request 
 	 * @return tree node that represents the leaf ready for the response to be added
 	 */
-	shared_ptr<RequestByteTreeNode> EcuLuaScript::addRequestToTree(shared_ptr<RequestByteTreeNode> requestByteTree, string &requestString) {
+    template<class T>
+	shared_ptr<RequestByteTreeNode<T>> EcuLuaScript::addRequestToTree(shared_ptr<RequestByteTreeNode<T>> requestByteTree, string &requestString) {
 		auto currentRequestByteTreePosition = requestByteTree;
 		for(uint32_t i = 0; i + 1 < requestString.length(); i+=2) {
 			string requestByteString = requestString.substr(i,2);
@@ -864,4 +874,4 @@ string EcuLuaScript::intToHexString(const uint8_t* buffer, const size_t num_byte
 		}
 		return currentRequestByteTreePosition;
 	}
-	
+
