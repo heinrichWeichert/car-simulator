@@ -64,9 +64,9 @@ public:
     std::string getDataByIdentifier(const std::string& identifier, const std::string& session);
     std::vector<std::string> getJ1939PGNs();
     J1939PGNData getJ1939RequestPGNData(const std::string& pgn);
-    std::string getJ1939Response(const shared_ptr<RequestByteTreeNode<Selector*>> requestByteTree, const uint32_t pgn, const uint8_t *payload, const uint32_t payloadLength);
+    std::string getJ1939Response(const shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> requestByteTree, const uint32_t pgn, const uint8_t *payload, const uint32_t payloadLength);
 
-    optional<string> getRawResponse(const shared_ptr<RequestByteTreeNode<Selector*>> requestByteTree, const uint8_t *payload, const uint32_t payloadLength);
+    optional<string> getRawResponse(const shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> requestByteTree, const uint8_t *payload, const uint32_t payloadLength);
     static std::vector<std::uint8_t> literalHexStrToBytes(const std::string& hexString);
 
     static std::string ascii(const std::string& utf8_str) noexcept;
@@ -86,8 +86,8 @@ public:
 
     template<class T>
 	optional<T> getValueFromTree(const shared_ptr<RequestByteTreeNode<T>> requestByteTree, const vector<uint8_t> payload);
-	shared_ptr<RequestByteTreeNode<sel::Selector*>> buildRequestByteTreeFromPGNTable();
-    shared_ptr<RequestByteTreeNode<Selector*>> buildRequestByteTreeFromRawTable();
+	shared_ptr<RequestByteTreeNode<shared_ptr<sel::Selector>>> buildRequestByteTreeFromPGNTable();
+    shared_ptr<RequestByteTreeNode<shared_ptr<sel::Selector>>> buildRequestByteTreeFromRawTable();
 
 private:
     sel::State lua_state_{true};
@@ -106,8 +106,8 @@ private:
 
     vector<string> getLuaTableKeys(Selector luaTable);
     string cleanupString(string rawString);
-    shared_ptr<RequestByteTreeNode<Selector*>> buildRequestByteTree(
-        vector<string> requestKeys, std::function<Selector*(string &key)> mappingFunction);
+    shared_ptr<RequestByteTreeNode<shared_ptr<sel::Selector>>> buildRequestByteTree(
+        vector<string> requestKeys, std::function<shared_ptr<sel::Selector>(string &key)> mappingFunction);
 
     template<class T>
     void findAndAddMatchesForNextByte(set<shared_ptr<RequestByteTreeNode<T>>> &matchingNodes, shared_ptr<RequestByteTreeNode<T>> currentByte, uint8_t nextByte);

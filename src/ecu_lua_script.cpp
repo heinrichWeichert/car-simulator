@@ -496,16 +496,16 @@ vector<string> EcuLuaScript::getJ1939PGNs()
 /**
  * Build a RequestByteTree from given keys with given response mapping function
  */
-shared_ptr<RequestByteTreeNode<Selector*>> EcuLuaScript::buildRequestByteTree(
-    vector<string> requestKeys, std::function<Selector*(string &key)> mappingFunction) {
+shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> EcuLuaScript::buildRequestByteTree(
+    vector<string> requestKeys, std::function<shared_ptr<Selector>(string &key)> mappingFunction) {
 
-    shared_ptr<RequestByteTreeNode<Selector*>> requestByteTree(new RequestByteTreeNode<Selector*>());
+    shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> requestByteTree(new RequestByteTreeNode<shared_ptr<Selector>>());
     for(string requestStringRaw : requestKeys)
     {
         string requestString = cleanupString(requestStringRaw);
         
         try {
-            Selector* response = mappingFunction(requestStringRaw);
+            shared_ptr<Selector> response = mappingFunction(requestStringRaw);
 
             auto requestByteLeaf = addRequestToTree(requestByteTree, requestString);
             requestByteLeaf->setLuaResponse(response);
@@ -519,21 +519,21 @@ shared_ptr<RequestByteTreeNode<Selector*>> EcuLuaScript::buildRequestByteTree(
 /**
  * Build a RequestByteTree from the 'Raw' table in the current simulation
  */
-shared_ptr<RequestByteTreeNode<Selector*>> EcuLuaScript::buildRequestByteTreeFromRawTable() {
+shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> EcuLuaScript::buildRequestByteTreeFromRawTable() {
     const std::lock_guard<std::mutex> lock(luaLock_);
 
     cout << "Get 'Raw' request tree from ident: " << ecu_ident_ << endl;
     auto rawTable = lua_state_[ecu_ident_.c_str()][RAW_TABLE];
     vector<string> requestKeys = getLuaTableKeys(rawTable);
 
-    return buildRequestByteTree(requestKeys, [&rawTable](string &x){ return new Selector(rawTable[x]);});
+    return buildRequestByteTree(requestKeys, [&rawTable](string &x){ return shared_ptr<Selector>(new Selector(rawTable[x]));});
 }
 
 
 /**
  * Build a RequestByteTree from the 'PGN' table in the current simulation
  */
-shared_ptr<RequestByteTreeNode<Selector*>> EcuLuaScript::buildRequestByteTreeFromPGNTable() {
+shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> EcuLuaScript::buildRequestByteTreeFromPGNTable() {
     const std::lock_guard<std::mutex> lock(luaLock_);
 
     cout << "Get 'PGN' request tree from ident: " << ecu_ident_ << endl;
@@ -544,7 +544,7 @@ shared_ptr<RequestByteTreeNode<Selector*>> EcuLuaScript::buildRequestByteTreeFro
         [](string &x){return x.find('#') == string::npos;}
     ), requestKeys.end());
 
-    return buildRequestByteTree(requestKeys, [&pgnTable](string &x){ return new Selector(pgnTable[x]);});
+    return buildRequestByteTree(requestKeys, [&pgnTable](string &x){ return shared_ptr<Selector>(new Selector(pgnTable[x]));});
 }
 
 J1939PGNData EcuLuaScript::getJ1939RequestPGNData(const std::string& pgn)
@@ -587,7 +587,7 @@ J1939PGNData EcuLuaScript::getJ1939RequestPGNData(const std::string& pgn)
 
 }
 
-string EcuLuaScript::getJ1939Response(const shared_ptr<RequestByteTreeNode<Selector*>> requestByteTree, const uint32_t pgn, const uint8_t *payload, const uint32_t payloadLength)
+string EcuLuaScript::getJ1939Response(const shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> requestByteTree, const uint32_t pgn, const uint8_t *payload, const uint32_t payloadLength)
 {
     const std::lock_guard<std::mutex> lock(luaLock_);
     string response;
@@ -604,7 +604,7 @@ string EcuLuaScript::getJ1939Response(const shared_ptr<RequestByteTreeNode<Selec
     auto val = getValueFromTree(requestByteTree, lookupPayload);
 
     if(val.has_value() == true) {
-        Selector *luaResp = *val;
+        shared_ptr<Selector> luaResp = *val;
         if (luaResp->isFunction())
         {
             response = (*luaResp)(intToHexString(payload, payloadLength)).toString();
@@ -629,7 +629,7 @@ string EcuLuaScript::getJ1939Response(const shared_ptr<RequestByteTreeNode<Selec
  * @return the response to be sent as literal hex byte string, an empty string when no response should be sent
  *          or an empty optional when no table entry matches the request
  */
-optional<string> EcuLuaScript::getRawResponse(const shared_ptr<RequestByteTreeNode<Selector*>> requestByteTree, const uint8_t *payload, const uint32_t payloadLength)
+optional<string> EcuLuaScript::getRawResponse(const shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> requestByteTree, const uint8_t *payload, const uint32_t payloadLength)
 { 
     const std::lock_guard<std::mutex> scopelock(luaLock_);
 
@@ -639,7 +639,7 @@ optional<string> EcuLuaScript::getRawResponse(const shared_ptr<RequestByteTreeNo
 
     optional<string> response = {};
     if(val.has_value() == true) {
-        Selector *luaResp = *val;
+        shared_ptr<Selector> luaResp = *val;
         if (luaResp->isFunction())
         {
             response = (*luaResp)(intToHexString(payload, payloadLength)).toString();
