@@ -698,49 +698,13 @@ string EcuLuaScript::intToHexString(const uint8_t* buffer, const size_t num_byte
 {
     string a = "";
 
-    for (unsigned int i = 0; i < num_bytes; i++)
+    for (uint32_t i = 0; i < num_bytes; i++)
     {
-        if ((buffer[i] / 16) > 9)
-        {
-            if ((buffer[i] / 16) == 0x0a)
-                a.append("A");
-            else if ((buffer[i] / 16) == 0x0b)
-                a.append("B");
-            else if ((buffer[i] / 16) == 0x0c)
-                a.append("C");
-            else if ((buffer[i] / 16) == 0x0d)
-                a.append("D");
-            else if ((buffer[i] / 16) == 0x0e)
-                a.append("E");
-            else if ((buffer[i] / 16) == 0x0f)
-                a.append("F");
-        }
-        else
-        {
-            a.append(to_string(buffer[i] / 16));
-        }
-        if ((buffer[i] % 16) > 9)
-        {
-            if ((buffer[i] % 16) == 0x0a)
-                a.append("A");
-            else if ((buffer[i] % 16) == 0x0b)
-                a.append("B");
-            else if ((buffer[i] % 16) == 0x0c)
-                a.append("C");
-            else if ((buffer[i] % 16) == 0x0d)
-                a.append("D");
-            else if ((buffer[i] % 16) == 0x0e)
-                a.append("E");
-            else if ((buffer[i] % 16) == 0x0f)
-                a.append("F");
-        }
-        else
-        {
-            a.append(to_string(buffer[i] % 16));
-        }
+        a.push_back(HEX_LUT[buffer[i] / 16]);
+        a.push_back(HEX_LUT[buffer[i] % 16]);
         if (!(i == num_bytes - 1))
         {
-            a.append(" ");
+            a.push_back(' ');
         }
     }
     return a;
