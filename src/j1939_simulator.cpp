@@ -410,7 +410,7 @@ int J1939Simulator::openJ1939Socket(const uint8_t node_address) const noexcept
     int skt = socket(PF_CAN, SOCK_DGRAM, CAN_J1939);
     if (skt < 0)
     {
-        cerr << __func__ << "() socket: " << strerror(errno) << '\n';
+        cerr << __func__ << "() socket: " << strerror(errno) << endl;
         return -1;
     }
 
