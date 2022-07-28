@@ -65,8 +65,8 @@ private:
 	 * into the map that represents placeholder and wildcard, we use separate
 	 * fields for them. This avoids converting between byte and short.
 	 */
-	shared_ptr<RequestByteTreeNode<T>> subsequentPlaceholder;
-	shared_ptr<RequestByteTreeNode<T>> subsequentWildcard;
+	shared_ptr<RequestByteTreeNode<T>> subsequentPlaceholder = nullptr;
+	shared_ptr<RequestByteTreeNode<T>> subsequentWildcard =  nullptr;
 	
 	/**
 	 * Stores the actual rvalue from the lua map in case there is any
@@ -132,8 +132,15 @@ public:
 	
 	// Builder Methods
 	inline shared_ptr<RequestByteTreeNode<T>> appendByte(uint8_t requestByte) {
-        subsequentByte.emplace(requestByte, shared_ptr<RequestByteTreeNode<T>>(new RequestByteTreeNode<T>(placeholderCount, requestLength + 1)));
-		return subsequentByte[requestByte];
+        //This would be easier but results in shared_ptr throwing a runtime exception
+		// subsequentByte.emplace(requestByte, shared_ptr<RequestByteTreeNode<T>>(new RequestByteTreeNode<T>(placeholderCount, requestLength + 1)));
+		typename map<uint8_t, shared_ptr<RequestByteTreeNode<T>>>::iterator nextByte = subsequentByte.find(requestByte);
+		if(nextByte != subsequentByte.end()) {
+			return nextByte->second;
+		} else {
+			subsequentByte.insert(pair<uint8_t, shared_ptr<RequestByteTreeNode<T>>>(requestByte, new RequestByteTreeNode<T>(placeholderCount, requestLength + 1)));
+			return subsequentByte[requestByte];
+		}
 	}
 	
 	inline shared_ptr<RequestByteTreeNode<T>> appendWildcard() {

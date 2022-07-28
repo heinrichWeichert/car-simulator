@@ -541,11 +541,11 @@ shared_ptr<RequestByteTreeNode<Selector*>> EcuLuaScript::buildRequestByteTreeFro
             [](char &x){return string("_.,; #\t").find(x) != string::npos;}
         ), requestString.end());
         
-        Selector response = pgnTable[requestStringRaw];
-
         try {
+            Selector* response = new Selector(pgnTable[requestStringRaw]);
+
             auto requestByteLeaf = addRequestToTree(requestByteTree, requestString);
-            requestByteLeaf->setLuaResponse(&response);
+            requestByteLeaf->setLuaResponse(response);
         } catch(exception &e) {
             cerr << "Ignoring invalid request '" << requestStringRaw << "': " << e.what();
         }
@@ -852,7 +852,7 @@ string EcuLuaScript::intToHexString(const uint8_t* buffer, const size_t num_byte
 		auto currentRequestByteTreePosition = requestByteTree;
 		for(uint32_t i = 0; i + 1 < requestString.length(); i+=2) {
 			string requestByteString = requestString.substr(i,2);
-			if(strncasecmp(requestByteString.c_str(), REQUEST_PLACEHOLDER.c_str(), REQUEST_PLACEHOLDER.length())) {
+			if(strncasecmp(requestByteString.c_str(), REQUEST_PLACEHOLDER.c_str(), REQUEST_PLACEHOLDER.length()) == 0) {
 				currentRequestByteTreePosition = currentRequestByteTreePosition->appendPlaceholder();
 			} else {
 				try {
