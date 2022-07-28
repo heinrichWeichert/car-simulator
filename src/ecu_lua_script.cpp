@@ -453,32 +453,6 @@ void EcuLuaScript::switchToSession(int ses)
 }
 
 /**
- * Checks if the identifier is in the Raw-section of the lua script.
- *
- * @param identStr: the identifier string for the entry in the Lua "Raw"-table
- * @return true if identifier is in the raw section, false otherwise
- */
-// bool EcuLuaScript::hasRaw(const string& identStr)
-// {
-//     const std::lock_guard<std::mutex> lock(luaLock_);
-
-//     auto val = lua_state_[ecu_ident_.c_str()][RAW_TABLE][identStr.c_str()];
-//     if(val.exists()==false){
-//         string identStrWorking = " ";
-//         //offset for the first byte
-//         int counter = 2;
-//         while(val.exists() == false && identStrWorking.length() < identStr.length()){
-//             //appends wildcard sign after the bytes that are tested
-//             identStrWorking = identStr.substr(0,counter).append(" *");
-//             val = lua_state_[ecu_ident_.c_str()][RAW_TABLE][identStrWorking.c_str()];
-//             //counter + blank + bytelength
-//             counter = counter + 3;
-//         }
-//     }
-//     return val.exists();
-// }
-
-/**
  * Gets all keys from the given Lua table
  *
  * @return vector of keys or an empty vector if not table given
@@ -710,138 +684,138 @@ string EcuLuaScript::intToHexString(const uint8_t* buffer, const size_t num_byte
     return a;
 }
 
-	/**
-	 * Tries to get the Value by using the request tree, including wildcard and placeholder keys
-	 * See {@link RequestByteTreeNode} to see how the tree works
-	 * 
-	 */
-    template<class T>
-	optional<T> EcuLuaScript::getValueFromTree(const shared_ptr<RequestByteTreeNode<T>> requestByteTree, const vector<uint8_t> payload) {
-		set<shared_ptr<RequestByteTreeNode<T>>> potentiallyMatchingRequests;
-		potentiallyMatchingRequests.insert(requestByteTree);
-		
-        for(auto nextByte : payload) {
-            if(potentiallyMatchingRequests.empty()) {
-                break;
+/**
+ * Tries to get the Value by using the request tree, including wildcard and placeholder keys
+ * See {@link RequestByteTreeNode} to see how the tree works
+ * 
+ */
+template<class T>
+optional<T> EcuLuaScript::getValueFromTree(const shared_ptr<RequestByteTreeNode<T>> requestByteTree, const vector<uint8_t> payload) {
+    set<shared_ptr<RequestByteTreeNode<T>>> potentiallyMatchingRequests;
+    potentiallyMatchingRequests.insert(requestByteTree);
+    
+    for(auto nextByte : payload) {
+        if(potentiallyMatchingRequests.empty()) {
+            break;
+        }
+        set<shared_ptr<RequestByteTreeNode<T>>> matchingNodes;
+        for (typename set<shared_ptr<RequestByteTreeNode<T>>>::iterator reqIter = potentiallyMatchingRequests.begin();
+                reqIter != potentiallyMatchingRequests.end(); reqIter++) {
+            auto crntRequestByte = *reqIter;
+            if(crntRequestByte->isWildcard()) {
+                matchingNodes.insert(crntRequestByte);
+                continue;
             }
-			set<shared_ptr<RequestByteTreeNode<T>>> matchingNodes;
-			for (typename set<shared_ptr<RequestByteTreeNode<T>>>::iterator reqIter = potentiallyMatchingRequests.begin();
-                    reqIter != potentiallyMatchingRequests.end(); reqIter++) {
-                auto crntRequestByte = *reqIter;
-				if(crntRequestByte->isWildcard()) {
-					matchingNodes.insert(crntRequestByte);
-					continue;
-				}
-				findAndAddMatchesForNextByte(matchingNodes, crntRequestByte, nextByte);				
-			}
-			potentiallyMatchingRequests = matchingNodes;
-		}
-		
-		auto bestMatchingRequest = findBestMatchingRequest(potentiallyMatchingRequests);
-		if(bestMatchingRequest) {
-			return bestMatchingRequest->getLuaResponse();
-		}
-		return {};
-	}
+            findAndAddMatchesForNextByte(matchingNodes, crntRequestByte, nextByte);				
+        }
+        potentiallyMatchingRequests = matchingNodes;
+    }
+    
+    auto bestMatchingRequest = findBestMatchingRequest(potentiallyMatchingRequests);
+    if(bestMatchingRequest) {
+        return bestMatchingRequest->getLuaResponse();
+    }
+    return {};
+}
 
-    template<class T>
-	void EcuLuaScript::findAndAddMatchesForNextByte(set<shared_ptr<RequestByteTreeNode<T>>> &matchingNodes, shared_ptr<RequestByteTreeNode<T>> currentByte, uint8_t nextByte) {
-		shared_ptr<RequestByteTreeNode<T>> crntByteTreeOpt;
-		crntByteTreeOpt = currentByte->getSubsequentByte(nextByte);
-		if(crntByteTreeOpt) {
-			matchingNodes.insert(crntByteTreeOpt);
-		}
-		crntByteTreeOpt = currentByte->getSubsequentPlaceholder();
-		if(crntByteTreeOpt) {
-			matchingNodes.insert(crntByteTreeOpt);
-		}
-		crntByteTreeOpt = currentByte->getSubsequentWildcard();
-		if(crntByteTreeOpt) {
-			matchingNodes.insert(crntByteTreeOpt);
-		}
-	}
-	
-	/**
-	 * From the list of potentially matching requests find the one that matches best
-	 * according these rules in the specified order:
-	 * * Prefer requests without wildcard (*)
-	 * * Prefer requests with fewer placeholders (XX)
-	 * * If there are only requests with wildcard, prefer longer ones (no matter how many placeholders)
-	 *   (All requests without wildcard have per definition the same length as the received request)
-	 * * If there are still multiple requests, it is undefined which one is chosen
-	 * @param potentiallyMatchingRequests
-	 * @return
-	 */
-    template<class T>
-   	shared_ptr<RequestByteTreeNode<T>> EcuLuaScript::findBestMatchingRequest(set<shared_ptr<RequestByteTreeNode<T>>> &potentiallyMatchingRequests) {
-		shared_ptr<RequestByteTreeNode<T>> bestMatchingRequest;
-		for (auto matchingRequestItem : potentiallyMatchingRequests) {
-			auto matchingRequest = getThisOrNextWildcardWithResponse(matchingRequestItem);
-			if(!matchingRequest->getLuaResponse()) {
-				continue;
-			}
-			if(!bestMatchingRequest) {
-				bestMatchingRequest = matchingRequest;
-			} else {				
-				if(bestMatchingRequest->isWildcard() && !matchingRequest->isWildcard()) {
-					bestMatchingRequest = matchingRequest;
-				} else if(matchingRequest->isWildcard() && matchingRequest->getRequestLength() > bestMatchingRequest->getRequestLength()) {
-					bestMatchingRequest = matchingRequest;
-				} else if(matchingRequest->getPlaceholderCount() < bestMatchingRequest->getPlaceholderCount()) {
-					bestMatchingRequest = matchingRequest;
-				}
-			}
-		}
-		return bestMatchingRequest;
-	}
-	
-	/**
-	 * Determine if the given node has a response, if not return the subsequent wildcard if there is one.
-	 * Background: A Wildcard also matches for 0 bytes. 
-	 * @param requestByteNode
-	 * @return
-	 */
-    template<class T>
-	shared_ptr<RequestByteTreeNode<T>> EcuLuaScript::getThisOrNextWildcardWithResponse(shared_ptr<RequestByteTreeNode<T>> requestByteNode) {
-		if(!requestByteNode->getLuaResponse()) {
-			return (requestByteNode->getSubsequentWildcard() ? requestByteNode->getSubsequentWildcard() : requestByteNode);
-		}
-		return requestByteNode;
-	}
+template<class T>
+void EcuLuaScript::findAndAddMatchesForNextByte(set<shared_ptr<RequestByteTreeNode<T>>> &matchingNodes, shared_ptr<RequestByteTreeNode<T>> currentByte, uint8_t nextByte) {
+    shared_ptr<RequestByteTreeNode<T>> crntByteTreeOpt;
+    crntByteTreeOpt = currentByte->getSubsequentByte(nextByte);
+    if(crntByteTreeOpt) {
+        matchingNodes.insert(crntByteTreeOpt);
+    }
+    crntByteTreeOpt = currentByte->getSubsequentPlaceholder();
+    if(crntByteTreeOpt) {
+        matchingNodes.insert(crntByteTreeOpt);
+    }
+    crntByteTreeOpt = currentByte->getSubsequentWildcard();
+    if(crntByteTreeOpt) {
+        matchingNodes.insert(crntByteTreeOpt);
+    }
+}
 
-	/**
-	 * Add the given request to the given request byte tree and return the leaf node
-	 * @param requestByteTree The root of the tree this request should be added to
-	 * @param requestStringRaw
-	 * @param requestString The normalized (i.e. without spaces and other separators) string representation of the request 
-	 * @return tree node that represents the leaf ready for the response to be added
-	 */
-    template<class T>
-	shared_ptr<RequestByteTreeNode<T>> EcuLuaScript::addRequestToTree(shared_ptr<RequestByteTreeNode<T>> requestByteTree, string &requestString) {
-		auto currentRequestByteTreePosition = requestByteTree;
-		for(uint32_t i = 0; i + 1 < requestString.length(); i+=2) {
-			string requestByteString = requestString.substr(i,2);
-			if(strncasecmp(requestByteString.c_str(), REQUEST_PLACEHOLDER.c_str(), REQUEST_PLACEHOLDER.length()) == 0) {
-				currentRequestByteTreePosition = currentRequestByteTreePosition->appendPlaceholder();
-			} else {
-				try {
-					uint8_t requestByte = literalHexStrToBytes(requestByteString).at(0);
-					currentRequestByteTreePosition = currentRequestByteTreePosition->appendByte(requestByte);
-				} catch(out_of_range &e) {
-                    cerr << requestByteString << " is not a hex number." << endl;
-					throw exception();
-				}
-			}
-		}
-		
-		if(requestString.length() % 2 != 0) {
-			if(requestString.compare(requestString.length() - REQUEST_WILDCARD.length(), REQUEST_WILDCARD.length(), REQUEST_WILDCARD) == 0) {
-				currentRequestByteTreePosition = currentRequestByteTreePosition->appendWildcard();
-			} else {
-                cerr << requestString << " has odd number of digits." << endl;
+/**
+ * From the list of potentially matching requests find the one that matches best
+ * according these rules in the specified order:
+ * * Prefer requests without wildcard (*)
+ * * Prefer requests with fewer placeholders (XX)
+ * * If there are only requests with wildcard, prefer longer ones (no matter how many placeholders)
+ *   (All requests without wildcard have per definition the same length as the received request)
+ * * If there are still multiple requests, it is undefined which one is chosen
+ * @param potentiallyMatchingRequests
+ * @return
+ */
+template<class T>
+shared_ptr<RequestByteTreeNode<T>> EcuLuaScript::findBestMatchingRequest(set<shared_ptr<RequestByteTreeNode<T>>> &potentiallyMatchingRequests) {
+    shared_ptr<RequestByteTreeNode<T>> bestMatchingRequest;
+    for (auto matchingRequestItem : potentiallyMatchingRequests) {
+        auto matchingRequest = getThisOrNextWildcardWithResponse(matchingRequestItem);
+        if(!matchingRequest->getLuaResponse()) {
+            continue;
+        }
+        if(!bestMatchingRequest) {
+            bestMatchingRequest = matchingRequest;
+        } else {				
+            if(bestMatchingRequest->isWildcard() && !matchingRequest->isWildcard()) {
+                bestMatchingRequest = matchingRequest;
+            } else if(matchingRequest->isWildcard() && matchingRequest->getRequestLength() > bestMatchingRequest->getRequestLength()) {
+                bestMatchingRequest = matchingRequest;
+            } else if(matchingRequest->getPlaceholderCount() < bestMatchingRequest->getPlaceholderCount()) {
+                bestMatchingRequest = matchingRequest;
+            }
+        }
+    }
+    return bestMatchingRequest;
+}
+
+/**
+ * Determine if the given node has a response, if not return the subsequent wildcard if there is one.
+ * Background: A Wildcard also matches for 0 bytes. 
+ * @param requestByteNode
+ * @return
+ */
+template<class T>
+shared_ptr<RequestByteTreeNode<T>> EcuLuaScript::getThisOrNextWildcardWithResponse(shared_ptr<RequestByteTreeNode<T>> requestByteNode) {
+    if(!requestByteNode->getLuaResponse()) {
+        return (requestByteNode->getSubsequentWildcard() ? requestByteNode->getSubsequentWildcard() : requestByteNode);
+    }
+    return requestByteNode;
+}
+
+/**
+ * Add the given request to the given request byte tree and return the leaf node
+ * @param requestByteTree The root of the tree this request should be added to
+ * @param requestStringRaw
+ * @param requestString The normalized (i.e. without spaces and other separators) string representation of the request 
+ * @return tree node that represents the leaf ready for the response to be added
+ */
+template<class T>
+shared_ptr<RequestByteTreeNode<T>> EcuLuaScript::addRequestToTree(shared_ptr<RequestByteTreeNode<T>> requestByteTree, string &requestString) {
+    auto currentRequestByteTreePosition = requestByteTree;
+    for(uint32_t i = 0; i + 1 < requestString.length(); i+=2) {
+        string requestByteString = requestString.substr(i,2);
+        if(strncasecmp(requestByteString.c_str(), REQUEST_PLACEHOLDER.c_str(), REQUEST_PLACEHOLDER.length()) == 0) {
+            currentRequestByteTreePosition = currentRequestByteTreePosition->appendPlaceholder();
+        } else {
+            try {
+                uint8_t requestByte = literalHexStrToBytes(requestByteString).at(0);
+                currentRequestByteTreePosition = currentRequestByteTreePosition->appendByte(requestByte);
+            } catch(out_of_range &e) {
+                cerr << requestByteString << " is not a hex number." << endl;
                 throw exception();
-			}
-		}
-		return currentRequestByteTreePosition;
-	}
+            }
+        }
+    }
+    
+    if(requestString.length() % 2 != 0) {
+        if(requestString.compare(requestString.length() - REQUEST_WILDCARD.length(), REQUEST_WILDCARD.length(), REQUEST_WILDCARD) == 0) {
+            currentRequestByteTreePosition = currentRequestByteTreePosition->appendWildcard();
+        } else {
+            cerr << requestString << " has odd number of digits." << endl;
+            throw exception();
+        }
+    }
+    return currentRequestByteTreePosition;
+}
 

@@ -18,7 +18,6 @@
 #include <optional>
 #include <functional>
 
-
 constexpr char REQ_ID_FIELD[] = "RequestId";
 constexpr char RES_ID_FIELD[] = "ResponseId";
 constexpr char BROADCAST_ID_FIELD[] = "BroadcastId";
@@ -33,7 +32,6 @@ constexpr uint32_t DEFAULT_BROADCAST_ADDR = 0x7DF;
 
 const string REQUEST_PLACEHOLDER("XX");
 const string REQUEST_WILDCARD("*");
-
 
 struct J1939PGNData
 {
@@ -69,7 +67,6 @@ public:
     std::string getJ1939Response(const shared_ptr<RequestByteTreeNode<Selector*>> requestByteTree, const uint32_t pgn, const uint8_t *payload, const uint32_t payloadLength);
 
     optional<string> getRawResponse(const shared_ptr<RequestByteTreeNode<Selector*>> requestByteTree, const uint8_t *payload, const uint32_t payloadLength);
-    //bool hasRaw(const std::string& identStr);
     static std::vector<std::uint8_t> literalHexStrToBytes(const std::string& hexString);
 
     static std::string ascii(const std::string& utf8_str) noexcept;
