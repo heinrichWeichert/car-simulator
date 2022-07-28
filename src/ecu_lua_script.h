@@ -16,6 +16,7 @@
 #include <mutex>
 #include <set>
 #include <optional>
+#include <functional>
 
 
 constexpr char REQ_ID_FIELD[] = "RequestId";
@@ -90,6 +91,7 @@ public:
     template<class T>
 	optional<T> getValueFromTree(const shared_ptr<RequestByteTreeNode<T>> requestByteTree, const vector<uint8_t> payload);
 	shared_ptr<RequestByteTreeNode<sel::Selector*>> buildRequestByteTreeFromPGNTable();
+    shared_ptr<RequestByteTreeNode<Selector*>> buildRequestByteTreeFromRawTable();
 
 private:
     sel::State lua_state_{true};
@@ -105,6 +107,11 @@ private:
     bool hasJ1939SourceAddress_ = false;
     std::uint8_t j1939SourceAddress_;
     std::mutex luaLock_;
+
+    vector<string> getLuaTableKeys(Selector luaTable);
+    string cleanupString(string rawString);
+    shared_ptr<RequestByteTreeNode<Selector*>> buildRequestByteTree(
+        vector<string> requestKeys, std::function<Selector*(string &key)> mappingFunction);
 
     template<class T>
     void findAndAddMatchesForNextByte(set<shared_ptr<RequestByteTreeNode<T>>> &matchingNodes, shared_ptr<RequestByteTreeNode<T>> currentByte, uint8_t nextByte);

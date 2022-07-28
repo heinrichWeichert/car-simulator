@@ -479,20 +479,31 @@ bool EcuLuaScript::hasRaw(const string& identStr)
 }
 
 /**
- * Gets all request entries from the Lua "Raw"-Table.
+ * Gets all keys from the given Lua table
  *
- * @return vector of raw request data as they are configured in lua
+ * @return vector of keys or an empty vector if not table given
  */
-vector<string> EcuLuaScript::getRawRequests()
+vector<string> EcuLuaScript::getLuaTableKeys(Selector luaTable)
 {
-    const std::lock_guard<std::mutex> lock(luaLock_);
-
-    auto rawTable = lua_state_[ecu_ident_.c_str()][RAW_TABLE];
-    if(rawTable.exists()) {
-        return rawTable.getKeys();
+    if(luaTable.exists()) {
+        return luaTable.getKeys();
     } else {
         return vector<string>();
     }
+}
+
+/**
+ * @brief Remove all separator characters from given string
+ * 
+ * @param rawString 
+ * @return string rawString with all separator characters removed
+ */
+string EcuLuaScript::cleanupString(string rawString)
+{
+    rawString.erase(remove_if(rawString.begin(), rawString.end(),
+        [](char &x){return string("_.,; #\t").find(x) != string::npos;}
+    ), rawString.end());
+    return rawString;
 }
 
 /**
@@ -505,44 +516,22 @@ vector<string> EcuLuaScript::getJ1939PGNs()
     const std::lock_guard<std::mutex> lock(luaLock_);
 
     cout << "Get PGNs from ident: " << ecu_ident_ << endl;
-    auto pgnTable = lua_state_[ecu_ident_.c_str()][J1939_PGN_TABLE];
-    if(pgnTable.exists()) {
-        return pgnTable.getKeys();
-    } else {
-        return vector<string>();
-    }
+    return getLuaTableKeys(lua_state_[ecu_ident_.c_str()][J1939_PGN_TABLE]);
 }
 
 /**
- * Build a RequestByteTree from the PGN table in the current simulation
+ * Build a RequestByteTree from given keys with given response mapping function
  */
-shared_ptr<RequestByteTreeNode<Selector*>> EcuLuaScript::buildRequestByteTreeFromPGNTable() {
-    const std::lock_guard<std::mutex> lock(luaLock_);
-
-    cout << "Get PGN request tree from ident: " << ecu_ident_ << endl;
-    auto pgnTable = lua_state_[ecu_ident_.c_str()][J1939_PGN_TABLE];
-    vector<string> requestKeys;
-    if(pgnTable.exists()) {
-        requestKeys = pgnTable.getKeys();
-    } else {
-        requestKeys = vector<string>();
-    }
-
-    requestKeys.erase(remove_if(requestKeys.begin(), requestKeys.end(),
-        [](string &x){return x.find('#') == string::npos;}
-    ), requestKeys.end());
+shared_ptr<RequestByteTreeNode<Selector*>> EcuLuaScript::buildRequestByteTree(
+    vector<string> requestKeys, std::function<Selector*(string &key)> mappingFunction) {
 
     shared_ptr<RequestByteTreeNode<Selector*>> requestByteTree(new RequestByteTreeNode<Selector*>());
-    for(vector<string>::iterator requestIter = requestKeys.begin(); requestIter != requestKeys.end(); requestIter++)
+    for(string requestStringRaw : requestKeys)
     {
-        string requestStringRaw = *requestIter;
-        string requestString = requestStringRaw;
-        requestString.erase(remove_if(requestString.begin(), requestString.end(),
-            [](char &x){return string("_.,; #\t").find(x) != string::npos;}
-        ), requestString.end());
+        string requestString = cleanupString(requestStringRaw);
         
         try {
-            Selector* response = new Selector(pgnTable[requestStringRaw]);
+            Selector* response = mappingFunction(requestStringRaw);
 
             auto requestByteLeaf = addRequestToTree(requestByteTree, requestString);
             requestByteLeaf->setLuaResponse(response);
@@ -552,6 +541,36 @@ shared_ptr<RequestByteTreeNode<Selector*>> EcuLuaScript::buildRequestByteTreeFro
     }
 		
 	return requestByteTree;
+}
+/**
+ * Build a RequestByteTree from the 'Raw' table in the current simulation
+ */
+shared_ptr<RequestByteTreeNode<Selector*>> EcuLuaScript::buildRequestByteTreeFromRawTable() {
+    const std::lock_guard<std::mutex> lock(luaLock_);
+
+    cout << "Get 'Raw' request tree from ident: " << ecu_ident_ << endl;
+    auto rawTable = lua_state_[ecu_ident_.c_str()][RAW_TABLE];
+    vector<string> requestKeys = getLuaTableKeys(rawTable);
+
+    return buildRequestByteTree(requestKeys, [&rawTable](string &x){ return new Selector(rawTable[x]);});
+}
+
+
+/**
+ * Build a RequestByteTree from the PGN table in the current simulation
+ */
+shared_ptr<RequestByteTreeNode<Selector*>> EcuLuaScript::buildRequestByteTreeFromPGNTable() {
+    const std::lock_guard<std::mutex> lock(luaLock_);
+
+    cout << "Get PGN request tree from ident: " << ecu_ident_ << endl;
+    auto pgnTable = lua_state_[ecu_ident_.c_str()][J1939_PGN_TABLE];
+    vector<string> requestKeys = getLuaTableKeys(pgnTable);
+
+    requestKeys.erase(remove_if(requestKeys.begin(), requestKeys.end(),
+        [](string &x){return x.find('#') == string::npos;}
+    ), requestKeys.end());
+
+    return buildRequestByteTree(requestKeys, [&pgnTable](string &x){ return new Selector(pgnTable[x]);});
 }
 
 J1939PGNData EcuLuaScript::getJ1939RequestPGNData(const std::string& pgn)
