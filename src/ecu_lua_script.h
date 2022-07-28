@@ -64,13 +64,12 @@ public:
     std::string getSeed(std::uint8_t identifier);
     std::string getDataByIdentifier(const std::string& identifier);
     std::string getDataByIdentifier(const std::string& identifier, const std::string& session);
-    std::vector<std::string> getRawRequests();
     std::vector<std::string> getJ1939PGNs();
     J1939PGNData getJ1939RequestPGNData(const std::string& pgn);
-    string getJ1939Response(const shared_ptr<RequestByteTreeNode<Selector*>> requestByteTree, const uint32_t pgn, const uint8_t *payload, const uint32_t payloadLength);
+    std::string getJ1939Response(const shared_ptr<RequestByteTreeNode<Selector*>> requestByteTree, const uint32_t pgn, const uint8_t *payload, const uint32_t payloadLength);
 
-    std::string getRaw(const std::string& identStr);
-    bool hasRaw(const std::string& identStr);
+    optional<string> getRawResponse(const shared_ptr<RequestByteTreeNode<Selector*>> requestByteTree, const uint8_t *payload, const uint32_t payloadLength);
+    //bool hasRaw(const std::string& identStr);
     static std::vector<std::uint8_t> literalHexStrToBytes(const std::string& hexString);
 
     static std::string ascii(const std::string& utf8_str) noexcept;

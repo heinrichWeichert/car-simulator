@@ -458,25 +458,25 @@ void EcuLuaScript::switchToSession(int ses)
  * @param identStr: the identifier string for the entry in the Lua "Raw"-table
  * @return true if identifier is in the raw section, false otherwise
  */
-bool EcuLuaScript::hasRaw(const string& identStr)
-{
-    const std::lock_guard<std::mutex> lock(luaLock_);
+// bool EcuLuaScript::hasRaw(const string& identStr)
+// {
+//     const std::lock_guard<std::mutex> lock(luaLock_);
 
-    auto val = lua_state_[ecu_ident_.c_str()][RAW_TABLE][identStr.c_str()];
-    if(val.exists()==false){
-        string identStrWorking = " ";
-        //offset for the first byte
-        int counter = 2;
-        while(val.exists() == false && identStrWorking.length() < identStr.length()){
-            //appends wildcard sign after the bytes that are tested
-            identStrWorking = identStr.substr(0,counter).append(" *");
-            val = lua_state_[ecu_ident_.c_str()][RAW_TABLE][identStrWorking.c_str()];
-            //counter + blank + bytelength
-            counter = counter + 3;
-        }
-    }
-    return val.exists();
-}
+//     auto val = lua_state_[ecu_ident_.c_str()][RAW_TABLE][identStr.c_str()];
+//     if(val.exists()==false){
+//         string identStrWorking = " ";
+//         //offset for the first byte
+//         int counter = 2;
+//         while(val.exists() == false && identStrWorking.length() < identStr.length()){
+//             //appends wildcard sign after the bytes that are tested
+//             identStrWorking = identStr.substr(0,counter).append(" *");
+//             val = lua_state_[ecu_ident_.c_str()][RAW_TABLE][identStrWorking.c_str()];
+//             //counter + blank + bytelength
+//             counter = counter + 3;
+//         }
+//     }
+//     return val.exists();
+// }
 
 /**
  * Gets all keys from the given Lua table
@@ -557,12 +557,12 @@ shared_ptr<RequestByteTreeNode<Selector*>> EcuLuaScript::buildRequestByteTreeFro
 
 
 /**
- * Build a RequestByteTree from the PGN table in the current simulation
+ * Build a RequestByteTree from the 'PGN' table in the current simulation
  */
 shared_ptr<RequestByteTreeNode<Selector*>> EcuLuaScript::buildRequestByteTreeFromPGNTable() {
     const std::lock_guard<std::mutex> lock(luaLock_);
 
-    cout << "Get PGN request tree from ident: " << ecu_ident_ << endl;
+    cout << "Get 'PGN' request tree from ident: " << ecu_ident_ << endl;
     auto pgnTable = lua_state_[ecu_ident_.c_str()][J1939_PGN_TABLE];
     vector<string> requestKeys = getLuaTableKeys(pgnTable);
 
@@ -645,51 +645,37 @@ string EcuLuaScript::getJ1939Response(const shared_ptr<RequestByteTreeNode<Selec
 }
 
 /**
- * Gets the raw data entries from the Lua "Raw"-Table.
- * The identifiers of the corresponding entries are literal hex byte strings
- * (e.g. "12 FF 00"). The entries are either strings or functions that need
- * to be called, with the identifier string as the default parameter.
+ * Gets the response from the given requestByteTree that matches the given payload
+ * The entries in the table are either strings or functions that will
+ * to be called, with the payload string as the default parameter.
  *
- * @param identStr: the identifier string for the entry in the Lua "Raw"-table
- * @return the raw data as literal hex byte string or an empty string on error
+ * @param requestByteTree: The prepared tree-representation of the request table
+ * @param payload: Request payload to be matched with the table
+ * @param payloadLength Length of the payload
+ * @return the response to be sent as literal hex byte string, an empty string when no response should be sent
+ *          or an empty optional when no table entry matches the request
  */
-string EcuLuaScript::getRaw(const string& identStr)
+optional<string> EcuLuaScript::getRawResponse(const shared_ptr<RequestByteTreeNode<Selector*>> requestByteTree, const uint8_t *payload, const uint32_t payloadLength)
 { 
     const std::lock_guard<std::mutex> scopelock(luaLock_);
 
-    auto val = lua_state_[ecu_ident_.c_str()][RAW_TABLE][identStr.c_str()];
-    if(val.exists() == true){
-        
-        if (val.isFunction())
+    vector<uint8_t> lookupPayload(payload, payload + payloadLength);
+
+    auto val = getValueFromTree(requestByteTree, lookupPayload);
+
+    optional<string> response = {};
+    if(val.has_value() == true) {
+        Selector *luaResp = *val;
+        if (luaResp->isFunction())
         {
-            return val(identStr);
+            response = (*luaResp)(intToHexString(payload, payloadLength)).toString();
         }
         else
         {
-            return val; // will be cast into string
-        } 
-    }else{
-        string identStrWorking = " ";
-        //offset for the first byte
-        int counter = 2;
-        while(val.exists() == false && identStrWorking.length() < identStr.length()){
-            //appends wildcard sign after the bytes that are tested
-            identStrWorking = identStr.substr(0,counter).append(" *");
-            val = lua_state_[ecu_ident_.c_str()][RAW_TABLE][identStrWorking.c_str()];
-            //counter + blank + bytelength
-            counter = counter + 3;
-        }
-        if (val.isFunction())
-        {
-            //call the function with the originally given argument
-            return val(identStr);
-        }
-        else
-        {
-            return val; // will be cast into string
+            response = luaResp->toString();
         } 
     }
-    
+    return response;
 }
 
 
