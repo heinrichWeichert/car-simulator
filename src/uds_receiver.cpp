@@ -124,8 +124,8 @@ void UdsReceiver::proceedReceivedData(const uint8_t* buffer, const size_t num_by
         default:
             array<uint8_t, 3> resp = {
                 ERROR,
-		udsServiceIdentifier,
-	    	SERVICE_NOT_SUPPORTED
+                udsServiceIdentifier,
+                SERVICE_NOT_SUPPORTED
             };
             pIsoTpSender_->sendData(resp.data(), resp.size());
         }
@@ -175,12 +175,12 @@ void UdsReceiver::readDataByIdentifier(const uint8_t* buffer, const size_t num_b
         resp.insert(resp.cend(), data.cbegin(), data.cend()); // insert payload
         pIsoTpSender_->sendData(resp.data(), resp.size());
     }
-    else // send out of range
+    else
     {
         array<uint8_t, 3> nrc = {
             ERROR,
-	    0x22,
-	    SERVICE_NOT_SUPPORTED
+            0x22,
+            SERVICE_NOT_SUPPORTED
         };
         pIsoTpSender_->sendData(nrc.data(), nrc.size());
     }
@@ -257,8 +257,8 @@ void UdsReceiver::securityAccess(const uint8_t* buffer, const size_t num_bytes) 
         {
             array<uint8_t, 3> resp = {
                 ERROR,
-		0x27,
-	    	SERVICE_NOT_SUPPORTED
+                0x27,
+                SERVICE_NOT_SUPPORTED
             };
             pIsoTpSender_->sendData(resp.data(), resp.size());
         }
