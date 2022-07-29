@@ -547,14 +547,41 @@ shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> EcuLuaScript::buildRequest
     return buildRequestByteTree(requestKeys, [&pgnTable](string &x){ return shared_ptr<Selector>(new Selector(pgnTable[x]));});
 }
 
-J1939PGNData EcuLuaScript::getJ1939RequestPGNData(const std::string& pgn)
+/**
+ * Fetch list of PGNs that do not contain the '#' character and map them to their Lua response
+ */
+map<string,shared_ptr<Selector>> EcuLuaScript::buildRequestPGNMap() {
+    const std::lock_guard<std::mutex> lock(luaLock_);
+
+    map<string,shared_ptr<Selector>> pgnMap = map<string,shared_ptr<Selector>>();
+
+    auto pgnTable = lua_state_[ecu_ident_.c_str()][J1939_PGN_TABLE];
+    vector<string> pgnKeys = getLuaTableKeys(pgnTable);
+
+    pgnKeys.erase(remove_if(pgnKeys.begin(), pgnKeys.end(),
+        [](string &x){return x.find('#') != string::npos;}
+    ), pgnKeys.end());
+
+    for( string pgnKey : pgnKeys) {
+        if(pgnKey.find('#') == string::npos) {
+            string pgnNormalized = cleanupString(pgnKey);
+            pgnMap.insert(pair<string,shared_ptr<Selector>>(pgnNormalized, shared_ptr<Selector>(new Selector(pgnTable[pgnKey]))));
+        }
+    }
+
+    return pgnMap;
+}
+
+
+J1939PGNData EcuLuaScript::getJ1939RequestPGNData(const map<string,shared_ptr<Selector>> pgnMap, const std::string& pgn)
 {
     cout << "Looking for requested PGN: " << pgn << endl;
     J1939PGNData pgnData;
     pgnData.cycleTime = 0;
 
-    auto val = lua_state_[ecu_ident_.c_str()][J1939_PGN_TABLE][pgn.c_str()];
-    if(val.exists() == true) {
+    auto pgnItem = pgnMap.find(cleanupString(pgn));
+    if(pgnItem != pgnMap.end()) {
+        auto val = *(pgnItem->second);
         cout << "Found PGN: " << pgn << endl;
         if (val.isFunction())
         {

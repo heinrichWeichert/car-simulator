@@ -63,7 +63,7 @@ public:
     std::string getDataByIdentifier(const std::string& identifier);
     std::string getDataByIdentifier(const std::string& identifier, const std::string& session);
     std::vector<std::string> getJ1939PGNs();
-    J1939PGNData getJ1939RequestPGNData(const std::string& pgn);
+    J1939PGNData getJ1939RequestPGNData(const map<string,shared_ptr<Selector>> pgnMap, const std::string& pgn);
     std::string getJ1939Response(const shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> requestByteTree, const uint32_t pgn, const uint8_t *payload, const uint32_t payloadLength);
 
     optional<string> getRawResponse(const shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> requestByteTree, const uint8_t *payload, const uint32_t payloadLength);
@@ -85,9 +85,10 @@ public:
     std::string intToHexString(const uint8_t* buffer, const std::size_t num_bytes);
 
     template<class T>
-	optional<T> getValueFromTree(const shared_ptr<RequestByteTreeNode<T>> requestByteTree, const vector<uint8_t> payload);
-	shared_ptr<RequestByteTreeNode<shared_ptr<sel::Selector>>> buildRequestByteTreeFromPGNTable();
+    optional<T> getValueFromTree(const shared_ptr<RequestByteTreeNode<T>> requestByteTree, const vector<uint8_t> payload);
+    shared_ptr<RequestByteTreeNode<shared_ptr<sel::Selector>>> buildRequestByteTreeFromPGNTable();
     shared_ptr<RequestByteTreeNode<shared_ptr<sel::Selector>>> buildRequestByteTreeFromRawTable();
+    map<string,shared_ptr<sel::Selector>> buildRequestPGNMap();
 
 private:
     sel::State lua_state_{true};

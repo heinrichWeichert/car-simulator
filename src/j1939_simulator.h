@@ -11,6 +11,7 @@
 #include <vector>
 #include <memory>
 #include <thread>
+#include <map>
 
 #include "ecu_lua_script.h"
 
@@ -49,6 +50,7 @@ private:
     std::thread *j1939ReceiverThread_;
     std::vector<std::thread*> cyclicMessageThreads;
     shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> requestByteTree;
+    map<string,shared_ptr<Selector>> pgnsWithoutSeparator;
 
     uint16_t *pgns_;
 
