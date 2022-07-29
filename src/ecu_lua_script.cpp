@@ -512,21 +512,26 @@ vector<string> EcuLuaScript::getJ1939PGNs()
     }
 }
 
-J1939PGNData EcuLuaScript::getJ1939PGNData(const string& pgn)
+J1939PGNData EcuLuaScript::getJ1939PGNData(const string& pgn, const string& payload)
 {
     const std::lock_guard<std::mutex> lock(luaLock_);
 
     J1939PGNData pgnData;
     pgnData.cycleTime = 0;
 
-    cout << "Looking for PGN: " << pgn << endl;
-    auto val = lua_state_[ecu_ident_.c_str()][J1939_PGN_TABLE][pgn.c_str()];
-    cout << "Checking PGN value: " << pgn << endl;
+    string pgnLookup = pgn;
+    if(payload != "") {
+        pgnLookup = pgnLookup + " " + payload;
+    }
+
+    cout << "Looking for PGN: " << pgnLookup << endl;
+    auto val = lua_state_[ecu_ident_.c_str()][J1939_PGN_TABLE][pgnLookup.c_str()];
+    cout << "Checking PGN value: " << pgnLookup << endl;
     if(val.exists() == true) {
-        cout << "Found PGN: " << pgn << endl;
+        cout << "Found PGN: " << pgnLookup << endl;
         if (val.isFunction())
         {
-            pgnData.payload = val(pgn).toString();
+            pgnData.payload = val(pgnLookup).toString();
         }
         else if(val.isTable())
         {
@@ -538,7 +543,7 @@ J1939PGNData EcuLuaScript::getJ1939PGNData(const string& pgn)
             if(pgnPayload.exists() == true) {
                 if(pgnPayload.isFunction())
                 {
-                    pgnData.payload = pgnPayload(pgn).toString();
+                    pgnData.payload = pgnPayload(payload).toString();
                 }
                 else
                 {
@@ -550,8 +555,33 @@ J1939PGNData EcuLuaScript::getJ1939PGNData(const string& pgn)
         {
             pgnData.payload = val.toString(); // will be cast into string
         } 
-    } else {
-        cerr << "Unknown PGN: " << pgn << endl;
+    } else { // TODO: This will be replaced with a proper wildcard and placeholder matching
+        string pgnRequestPayloadWorking = "";
+        string payloadTmp = payload + " ";
+        //offset for the first byte
+        int counter = 0;
+        while(val.exists() == false && pgnRequestPayloadWorking.length() < payloadTmp.length()){
+            //appends wildcard sign after the bytes that are tested
+            pgnRequestPayloadWorking = payloadTmp.substr(0,counter).append("*");
+            string pgnLookupWorking = pgn + " " + pgnRequestPayloadWorking;
+            cout << "Looking for: '" << pgnLookupWorking << "'" << endl;
+            val = lua_state_[ecu_ident_.c_str()][J1939_PGN_TABLE][pgnLookupWorking.c_str()];
+            //counter + blank + bytelength
+            counter = counter + 3;
+        }
+        if (val.isFunction())
+        {
+            //call the function with the originally given argument
+            pgnData.payload = val(payload).toString();
+        }
+        else if(val.exists() == true)
+        {
+            pgnData.payload = val.toString();
+        } 
+        else
+        {
+            cerr << "Unknown PGN: " << pgnLookup << endl;
+        }
     }
 
     return pgnData;
@@ -619,4 +649,20 @@ void EcuLuaScript::registerSessionController(SessionController* pSesCtrl) noexce
 void EcuLuaScript::registerIsoTpSender(IsoTpSender* pSender) noexcept
 {
     pIsoTpSender_ = pSender;
+}
+
+string EcuLuaScript::intToHexString(const uint8_t* buffer, const size_t num_bytes)
+{
+    string a = "";
+
+    for (uint32_t i = 0; i < num_bytes; i++)
+    {
+        a.push_back(HEX_LUT[buffer[i] / 16]);
+        a.push_back(HEX_LUT[buffer[i] % 16]);
+        if (!(i == num_bytes - 1))
+        {
+            a.push_back(' ');
+        }
+    }
+    return a;
 }

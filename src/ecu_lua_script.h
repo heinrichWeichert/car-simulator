@@ -57,7 +57,7 @@ public:
     std::string getDataByIdentifier(const std::string& identifier, const std::string& session);
     std::vector<std::string> getRawRequests();
     std::vector<std::string> getJ1939PGNs();
-    J1939PGNData getJ1939PGNData(const std::string& pgn);
+    J1939PGNData getJ1939PGNData(const std::string& pgn, const std::string& payload = "");
 
     std::string getRaw(const std::string& identStr);
     bool hasRaw(const std::string& identStr);
@@ -75,6 +75,8 @@ public:
 
     void registerSessionController(SessionController* pSesCtrl) noexcept;
     void registerIsoTpSender(IsoTpSender* pSender) noexcept;
+
+    std::string intToHexString(const uint8_t* buffer, const std::size_t num_bytes);
 
 private:
     sel::State lua_state_{true};

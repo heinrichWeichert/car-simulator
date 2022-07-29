@@ -43,7 +43,6 @@ private:
     void diagnosticSessionControl(const std::uint8_t* buffer, const std::size_t num_bytes);
     void securityAccess(const std::uint8_t* buffer, const std::size_t num_bytes) noexcept;
 
-    std::string intToHexString(const uint8_t* buffer, const std::size_t num_bytes);
 };
 
 #endif /* UDS_RECEIVER_H */
