@@ -38,6 +38,7 @@ private:
     IsoTpSender* pIsoTpSender_ = nullptr;
     SessionController* pSessionCtrl_ = nullptr;
     std::uint8_t securityAccessType_ = 0x00;
+    shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> requestByteTree;
 
     void readDataByIdentifier(const std::uint8_t* buffer, const std::size_t num_bytes) noexcept;
     void diagnosticSessionControl(const std::uint8_t* buffer, const std::size_t num_bytes);

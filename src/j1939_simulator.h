@@ -11,6 +11,7 @@
 #include <vector>
 #include <memory>
 #include <thread>
+#include <map>
 
 #include "ecu_lua_script.h"
 
@@ -48,8 +49,9 @@ private:
     bool isOnExit_ = false;
     std::thread *j1939ReceiverThread_;
     std::vector<std::thread*> cyclicMessageThreads;
+    shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> requestByteTree;
+    map<string,shared_ptr<Selector>> pgnsWithoutSeparator;
 
-    sel::State lua_state_;
     uint16_t *pgns_;
 
     int openCyclicSendSocket() const noexcept;

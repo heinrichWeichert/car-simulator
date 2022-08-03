@@ -38,6 +38,8 @@ J1939Simulator::J1939Simulator(const std::string& device,
 , isOnExit_(false)
 {
     source_address_ = pEcuScript->getJ1939SourceAddress();
+    pgnsWithoutSeparator = pEcuScript->buildRequestPGNMap();
+    requestByteTree = pEcuScript->buildRequestByteTreeFromPGNTable();
 
     int err = openReceiver();
     if (err != 0)
@@ -177,20 +179,9 @@ void J1939Simulator::processReceivedData(const uint8_t* buffer, const size_t num
         cout << " 0x" << hex << setw(2) << setfill('0') << static_cast<int> (buffer[i]);
     }
     cout << endl;
+    cout << "on PGN " << pgn << endl;
 
-    string pgnString = "";
-    
-    uint8_t pgnBuffer[3];
-    pgnBuffer[0] = (uint8_t)(pgn >> 0);
-    pgnBuffer[1] = (uint8_t)(pgn >> 8);
-    pgnBuffer[2] = (uint8_t)(pgn >> 16);
-    pgnString += pEcuScript_->intToHexString(pgnBuffer, sizeof(pgnBuffer));
-    pgnString += " #";
-    string pgnRequestPayload = pEcuScript_->intToHexString(buffer, num_bytes);
-
-    cout << "Looking for PGN " << pgnString << " - Payload: " << pgnRequestPayload << endl;
-
-    string pgnResponse = pEcuScript_->getJ1939PGNData(pgnString, pgnRequestPayload).payload;
+    string pgnResponse = pEcuScript_->getJ1939Response(requestByteTree, pgn, buffer, num_bytes);
     cout << "-> Response: " << pgnResponse << endl;
 
     struct sockaddr_can saddr = {};
@@ -220,10 +211,11 @@ void J1939Simulator::processReceivedData(const uint8_t* buffer, const size_t num
 
         sendJ1939Message(receive_skt_, saddr, responsePayload);
     } else if(pgn == 0xEA00) {
+        string pgnRequestPayload = pEcuScript_->intToHexString(buffer, num_bytes);
         uint32_t requestedPgn = parsePGN(pgnRequestPayload);
         cout << "Requested PGN: " << requestedPgn << endl;
         saddr.can_addr.j1939.pgn = requestedPgn;
-        string pgnResponse = pEcuScript_->getJ1939PGNData(pgnRequestPayload).payload;
+        string pgnResponse = pEcuScript_->getJ1939RequestPGNData(pgnsWithoutSeparator, pgnRequestPayload).payload;
         cout << "-> Response: " << pgnResponse << endl;
 
         responsePayload = pEcuScript_->literalHexStrToBytes(pgnResponse);
@@ -286,7 +278,7 @@ void J1939Simulator::sendCyclicMessage(const string pgn) noexcept
 
 
     do {
-        J1939PGNData pgnData = pEcuScript_->getJ1939PGNData(pgn);
+        J1939PGNData pgnData = pEcuScript_->getJ1939RequestPGNData(pgnsWithoutSeparator, pgn);
         string pgnMessage = pgnData.payload;
         vector<unsigned char> rawMessage = pEcuScript_->literalHexStrToBytes(pgnMessage);
         unsigned int cycleTime = pgnData.cycleTime;

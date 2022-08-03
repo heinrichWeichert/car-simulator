@@ -43,6 +43,7 @@ UdsReceiver::UdsReceiver(canid_t source,
     assert(pSessionCtrl_ != nullptr);
     pEcuScript_->registerIsoTpSender(pSender);
     pEcuScript_->registerSessionController(pSesCtrl);
+    requestByteTree = pEcuScript->buildRequestByteTreeFromRawTable();
 }
 
 /**
@@ -94,12 +95,11 @@ void UdsReceiver::proceedReceivedData(const uint8_t* buffer, const size_t num_by
     IsoTpReceiver::proceedReceivedData(buffer, num_bytes);
 
     const uint8_t udsServiceIdentifier = buffer[0];
-    const string identifier = pEcuScript_->intToHexString(buffer, num_bytes);
-    const bool isRaw = pEcuScript_->hasRaw(identifier);
+    const optional<string> response = pEcuScript_->getRawResponse(requestByteTree, buffer, num_bytes);
 
-    if (isRaw)
+    if (response)
     {
-        vector<unsigned char> raw = pEcuScript_->literalHexStrToBytes(pEcuScript_->getRaw(identifier));
+        vector<unsigned char> raw = pEcuScript_->literalHexStrToBytes(*response);
         cout << "UDS sending: " << dec << raw.size() << " bytes." << endl;
         pIsoTpSender_->sendData(raw.data(), raw.size());
         pSessionCtrl_->reset();
