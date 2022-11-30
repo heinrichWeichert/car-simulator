@@ -24,32 +24,36 @@ vector<J1939Simulator *> j1939Simulators;
 
 void start_server(const string &config_file, const string &device)
 {
-    cout << "start_server for config file: " << config_file
-         << " on device: " << device << endl;
+    cout << "start_server for config file: " << config_file << endl;
 
     EcuLuaScript *script = new EcuLuaScript("Main", config_file);
 
-    ElectronicControlUnit *udsSimulator = NULL;
-    J1939Simulator *j1939Simulator = NULL;
+    if(device != "") {
+        cout << " on CAN device: " << device << endl;
+        ElectronicControlUnit *udsSimulator = NULL;
+        J1939Simulator *j1939Simulator = NULL;
 
-    if(ElectronicControlUnit::hasSimulation(script)) {
-        udsSimulator = new ElectronicControlUnit(device, script);
-        udsSimulators.push_back(udsSimulator);
-    }
-    if(J1939Simulator::hasSimulation(script)) {
-        j1939Simulator = new J1939Simulator(device, script);
-        j1939Simulators.push_back(j1939Simulator);
-    }
+        if(ElectronicControlUnit::hasSimulation(script)) {
+            udsSimulator = new ElectronicControlUnit(device, script);
+            udsSimulators.push_back(udsSimulator);
+        }
+        if(J1939Simulator::hasSimulation(script)) {
+            j1939Simulator = new J1939Simulator(device, script);
+            j1939Simulators.push_back(j1939Simulator);
+        }
 
-    if(udsSimulator) {
-        udsSimulator->waitForSimulationEnd();
-        cout << "UDS terminated" << endl;
-        delete udsSimulator;
-    }
-    if(j1939Simulator) {
-        j1939Simulator->waitForSimulationEnd();
-        cout << "J1939 terminated" << endl;
-        delete j1939Simulator;
+        if(udsSimulator) {
+            udsSimulator->waitForSimulationEnd();
+            cout << "UDS terminated" << endl;
+            delete udsSimulator;
+        }
+        if(j1939Simulator) {
+            j1939Simulator->waitForSimulationEnd();
+            cout << "J1939 terminated" << endl;
+            delete j1939Simulator;
+        }
+    } else {
+        cout << " CAN disabled - DoIP only." << endl;
     }
 }
 
@@ -74,7 +78,7 @@ void signalHandler(int signum) {
  */
 int main(int argc, char** argv)
 {
-    string device = "vcan0";
+    string device = "";
     if (argc > 1)
     {
         device = argv[1];
