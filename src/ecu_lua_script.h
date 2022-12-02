@@ -28,6 +28,7 @@ constexpr char J1939_SOURCE_ADDRESS_FIELD[] = "J1939SourceAddress";
 constexpr char J1939_PGN_TABLE[] = "PGNs";
 constexpr char J1939_PGN_PAYLOAD[] = "payload";
 constexpr char J1939_PGN_CYCLETIME[] = "cycleTime";
+constexpr char DOIP_LOGICAL_ECU_ADDRESS_FIELD[] = "DoIPLogicalEcuAddress";
 constexpr uint32_t DEFAULT_BROADCAST_ADDR = 0x7DF;
 
 const string REQUEST_PLACEHOLDER("XX");
@@ -58,6 +59,8 @@ public:
     std::uint32_t getBroadcastId() const;
     bool hasJ1939SourceAddress() const { return hasJ1939SourceAddress_; };
     std::uint8_t getJ1939SourceAddress() const;
+    bool hasDoIPLogicalEcuAddress() const { return hasDoIPLogicalEcuAddress_; };
+    std::uint16_t getDoIPLogicalEcuAddress() const { return doipLogicalEcuAddress_; };
 
     std::string getSeed(std::uint8_t identifier);
     std::string getDataByIdentifier(const std::string& identifier);
@@ -66,7 +69,7 @@ public:
     J1939PGNData getJ1939RequestPGNData(const map<string,shared_ptr<Selector>> pgnMap, const std::string& pgn);
     std::string getJ1939Response(const shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> requestByteTree, const uint32_t pgn, const uint8_t *payload, const uint32_t payloadLength);
 
-    optional<string> getRawResponse(const shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> requestByteTree, const uint8_t *payload, const uint32_t payloadLength);
+    std::optional<string> getRawResponse(const shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> requestByteTree, const uint8_t *payload, const uint32_t payloadLength);
     static std::vector<std::uint8_t> literalHexStrToBytes(const std::string& hexString);
 
     static std::string ascii(const std::string& utf8_str) noexcept;
@@ -103,6 +106,8 @@ private:
     std::uint32_t broadcastId_ = DEFAULT_BROADCAST_ADDR;
     bool hasJ1939SourceAddress_ = false;
     std::uint8_t j1939SourceAddress_;
+    bool hasDoIPLogicalEcuAddress_ = false;
+    std::uint16_t doipLogicalEcuAddress_;
     std::mutex luaLock_;
 
     vector<string> getLuaTableKeys(Selector luaTable);

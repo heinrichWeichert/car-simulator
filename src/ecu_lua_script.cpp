@@ -84,6 +84,13 @@ EcuLuaScript::EcuLuaScript(const string& ecuIdent, const string& luaScript)
                 j1939SourceAddress_ = uint32_t(j1939SourceAddress);
             }
 
+            auto doipLogicalEcuAddress = lua_state_[ecu_ident_.c_str()][DOIP_LOGICAL_ECU_ADDRESS_FIELD];
+            if (doipLogicalEcuAddress.exists())
+            {
+                hasDoIPLogicalEcuAddress_ = true;
+                doipLogicalEcuAddress_ = uint16_t(doipLogicalEcuAddress);
+            }
+
             return;
         }
     }

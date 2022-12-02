@@ -8,6 +8,8 @@
 #include "ecu_lua_script.h"
 #include "electronic_control_unit.h"
 #include "j1939_simulator.h"
+#include "doip_simulator.h"
+#include "doip_sim_server.h"
 #include "ecu_timer.h"
 #include "utilities.h"
 #include <string>
@@ -20,7 +22,9 @@ using namespace std;
 
 vector<ElectronicControlUnit *> udsSimulators;
 vector<J1939Simulator *> j1939Simulators;
+vector<DoIPSimulator *> doipSimulators;
 
+DoIPSimServer doipSimServer;
 
 void start_server(const string &config_file, const string &device)
 {
@@ -28,10 +32,12 @@ void start_server(const string &config_file, const string &device)
 
     EcuLuaScript *script = new EcuLuaScript("Main", config_file);
 
+    ElectronicControlUnit *udsSimulator = NULL;
+    J1939Simulator *j1939Simulator = NULL;
+    DoIPSimulator *doipSimulator = NULL;
+
     if(device != "") {
         cout << " on CAN device: " << device << endl;
-        ElectronicControlUnit *udsSimulator = NULL;
-        J1939Simulator *j1939Simulator = NULL;
 
         if(ElectronicControlUnit::hasSimulation(script)) {
             udsSimulator = new ElectronicControlUnit(device, script);
@@ -42,18 +48,30 @@ void start_server(const string &config_file, const string &device)
             j1939Simulators.push_back(j1939Simulator);
         }
 
-        if(udsSimulator) {
-            udsSimulator->waitForSimulationEnd();
-            cout << "UDS terminated" << endl;
-            delete udsSimulator;
-        }
-        if(j1939Simulator) {
-            j1939Simulator->waitForSimulationEnd();
-            cout << "J1939 terminated" << endl;
-            delete j1939Simulator;
-        }
+
     } else {
         cout << " CAN disabled - DoIP only." << endl;
+    }
+
+    if(DoIPSimulator::hasSimulation(script)) {
+        doipSimulator = new DoIPSimulator(script);
+        doipSimulators.push_back(doipSimulator);
+        doipSimServer.addECU(doipSimulator);
+    }
+
+    if(udsSimulator) {
+        udsSimulator->waitForSimulationEnd();
+        cout << "UDS/CAN terminated" << endl;
+        delete udsSimulator;
+    }
+    if(j1939Simulator) {
+        j1939Simulator->waitForSimulationEnd();
+        cout << "J1939 terminated" << endl;
+        delete j1939Simulator;
+    }
+    if(doipSimulator) {
+        cout << "DoIP terminated" << endl;
+        delete doipSimulator;
     }
 }
 
@@ -66,6 +84,7 @@ void signalHandler(int signum) {
         for (J1939Simulator *simulator : j1939Simulators) {
             simulator->stopSimulation();
         }
+        doipSimServer.shutdown();
         exit(1);
     }
 }
@@ -95,6 +114,9 @@ int main(int argc, char** argv)
 
     for (const string &config_file : config_files)
     {
+        if(config_file == "doipserver.lua") {   
+            doipSimServer.startWithConfig(LUA_CONFIG_PATH + config_file);
+        }
         thread t(start_server, config_file, device);
         threads.push_back(move(t));
         usleep(50000);
@@ -104,6 +126,8 @@ int main(int argc, char** argv)
     {
         threads[i].join();
     }
+
+    doipSimServer.shutdown();
 
     return 0;
 }
