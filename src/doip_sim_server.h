@@ -18,6 +18,7 @@ public:
     void receiveFromLibrary(unsigned short address, unsigned char* data, int length);
     void sendDiagnosticResponse(const std::vector<unsigned char> data, unsigned short logicalAddress);
     void addECU(DoIPSimulator* ecu);
+    bool isServerActive() { return serverActive; };
     DoIPServer* getServerInstance();
     std::vector<std::thread> doipReceiver;
     

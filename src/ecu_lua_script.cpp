@@ -88,7 +88,7 @@ EcuLuaScript::EcuLuaScript(const string& ecuIdent, const string& luaScript)
             if (doipLogicalEcuAddress.exists())
             {
                 hasDoIPLogicalEcuAddress_ = true;
-                doipLogicalEcuAddress_ = uint16_t(doipLogicalEcuAddress);
+                doipLogicalEcuAddress_ = uint32_t(doipLogicalEcuAddress);
             }
 
             return;

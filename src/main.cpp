@@ -55,8 +55,8 @@ void start_server(const string &config_file, const string &device)
 
     if(DoIPSimulator::hasSimulation(script)) {
         doipSimulator = new DoIPSimulator(script);
-        doipSimulators.push_back(doipSimulator);
         doipSimServer.addECU(doipSimulator);
+        doipSimulators.push_back(doipSimulator);
     }
 
     if(udsSimulator) {
@@ -69,10 +69,6 @@ void start_server(const string &config_file, const string &device)
         cout << "J1939 terminated" << endl;
         delete j1939Simulator;
     }
-    if(doipSimulator) {
-        cout << "DoIP terminated" << endl;
-        delete doipSimulator;
-    }
 }
 
 void signalHandler(int signum) {
@@ -80,11 +76,16 @@ void signalHandler(int signum) {
     if(signum == SIGINT) {
         for (ElectronicControlUnit *simulator : udsSimulators) {
             simulator->stopSimulation();
+            delete simulator;
         }
         for (J1939Simulator *simulator : j1939Simulators) {
             simulator->stopSimulation();
+            delete simulator;
         }
         doipSimServer.shutdown();
+        for (DoIPSimulator *simulator : doipSimulators) {
+            delete simulator;
+        }
         exit(1);
     }
 }
@@ -115,7 +116,7 @@ int main(int argc, char** argv)
     for (const string &config_file : config_files)
     {
         if(config_file == "doipserver.lua") {   
-            doipSimServer.startWithConfig(LUA_CONFIG_PATH + config_file);
+            doipSimServer.startWithConfig(config_file);
         }
         thread t(start_server, config_file, device);
         threads.push_back(move(t));
@@ -127,7 +128,9 @@ int main(int argc, char** argv)
         threads[i].join();
     }
 
-    doipSimServer.shutdown();
+    while(doipSimServer.isServerActive()) {
+        usleep(1000000);
+    }
 
     return 0;
 }

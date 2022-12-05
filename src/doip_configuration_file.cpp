@@ -20,9 +20,11 @@ DoipConfigurationFile ::DoipConfigurationFile(){ //if there is no config for the
  * Constructor. Reads lua file and save fields. 
  * @param luaScript     path to the lua script file
  */
-DoipConfigurationFile ::DoipConfigurationFile (const std::string& luaScript) {
+DoipConfigurationFile::DoipConfigurationFile (const std::string& luaScript) {
 
     const std::string id = "Main";
+
+    std::cout << "Trying to load DoIP configuration from: " << luaScript << std::endl;
     
     if(utils::existsFile(luaScript)) {
         lua_state.Load(luaScript);
