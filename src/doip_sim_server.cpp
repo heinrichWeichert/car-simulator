@@ -88,7 +88,8 @@ void DoIPSimServer::listenTcp() {
  */
 void DoIPSimServer::receiveFromLibrary(unsigned short address, unsigned char* data, int length) {
     printf("CarSimulator DoIP Simulator received: ");
-    for(int i = 0; i < length; i++) {
+    int logLength = (length > MAX_LOG_LENGTH ? MAX_LOG_LENGTH : length);
+    for(int i = 0; i < logLength; i++) {
         printf("0x%02X ", data[i]);
     }
     printf(" from doip lib.\n");

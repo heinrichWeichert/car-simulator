@@ -8,6 +8,8 @@
 #include <thread>
 #include <vector>
 
+#define MAX_LOG_LENGTH 10
+
 class DoIPSimServer
 {
 public:
