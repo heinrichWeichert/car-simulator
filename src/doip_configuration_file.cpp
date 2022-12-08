@@ -135,7 +135,7 @@ std::uint16_t DoipConfigurationFile ::getLogicalAddress() const
  * Gets the EID from the lua configuration file
  * @return      eid as string
  */
-unsigned long DoipConfigurationFile ::getEid() const
+std::uint64_t DoipConfigurationFile ::getEid() const
 {
     return this->eid;
 }
@@ -144,7 +144,7 @@ unsigned long DoipConfigurationFile ::getEid() const
  * Gets the GID from the lua configuration file
  * @return      gid as string
  */
-unsigned long DoipConfigurationFile ::getGid() const 
+std::uint64_t DoipConfigurationFile ::getGid() const 
 {
     return this->gid;
 }
