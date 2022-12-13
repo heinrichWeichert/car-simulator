@@ -49,8 +49,8 @@ void start_server(const string &config_file, const string &device)
         }
 
 
-    } else {
-        cout << " CAN disabled - DoIP only." << endl;
+    } else if(ElectronicControlUnit::hasSimulation(script) || J1939Simulator::hasSimulation(script)) {
+        cout << "Ignoring CAN simulation because no CAN device was given." << endl;
     }
 
     if(DoIPSimulator::hasSimulation(script)) {
