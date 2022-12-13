@@ -8,6 +8,8 @@
 #include "ecu_lua_script.h"
 #include "electronic_control_unit.h"
 #include "j1939_simulator.h"
+#include "doip_simulator.h"
+#include "doip_sim_server.h"
 #include "ecu_timer.h"
 #include "utilities.h"
 #include <string>
@@ -20,30 +22,46 @@ using namespace std;
 
 vector<ElectronicControlUnit *> udsSimulators;
 vector<J1939Simulator *> j1939Simulators;
+vector<DoIPSimulator *> doipSimulators;
 
+DoIPSimServer doipSimServer;
 
 void start_server(const string &config_file, const string &device)
 {
-    cout << "start_server for config file: " << config_file
-         << " on device: " << device << endl;
+    cout << "start_server for config file: " << config_file << endl;
 
     EcuLuaScript *script = new EcuLuaScript("Main", config_file);
 
     ElectronicControlUnit *udsSimulator = NULL;
     J1939Simulator *j1939Simulator = NULL;
+    DoIPSimulator *doipSimulator = NULL;
 
-    if(ElectronicControlUnit::hasSimulation(script)) {
-        udsSimulator = new ElectronicControlUnit(device, script);
-        udsSimulators.push_back(udsSimulator);
+    if(device != "") {
+        cout << " on CAN device: " << device << endl;
+
+        if(ElectronicControlUnit::hasSimulation(script)) {
+            udsSimulator = new ElectronicControlUnit(device, script);
+            udsSimulators.push_back(udsSimulator);
+        }
+        if(J1939Simulator::hasSimulation(script)) {
+            j1939Simulator = new J1939Simulator(device, script);
+            j1939Simulators.push_back(j1939Simulator);
+        }
+
+
+    } else if(ElectronicControlUnit::hasSimulation(script) || J1939Simulator::hasSimulation(script)) {
+        cout << "Ignoring CAN simulation because no CAN device was given." << endl;
     }
-    if(J1939Simulator::hasSimulation(script)) {
-        j1939Simulator = new J1939Simulator(device, script);
-        j1939Simulators.push_back(j1939Simulator);
+
+    if(DoIPSimulator::hasSimulation(script)) {
+        doipSimulator = new DoIPSimulator(script);
+        doipSimServer.addECU(doipSimulator);
+        doipSimulators.push_back(doipSimulator);
     }
 
     if(udsSimulator) {
         udsSimulator->waitForSimulationEnd();
-        cout << "UDS terminated" << endl;
+        cout << "UDS/CAN terminated" << endl;
         delete udsSimulator;
     }
     if(j1939Simulator) {
@@ -58,9 +76,15 @@ void signalHandler(int signum) {
     if(signum == SIGINT) {
         for (ElectronicControlUnit *simulator : udsSimulators) {
             simulator->stopSimulation();
+            delete simulator;
         }
         for (J1939Simulator *simulator : j1939Simulators) {
             simulator->stopSimulation();
+            delete simulator;
+        }
+        doipSimServer.shutdown();
+        for (DoIPSimulator *simulator : doipSimulators) {
+            delete simulator;
         }
         exit(1);
     }
@@ -74,7 +98,7 @@ void signalHandler(int signum) {
  */
 int main(int argc, char** argv)
 {
-    string device = "vcan0";
+    string device = "";
     if (argc > 1)
     {
         device = argv[1];
@@ -91,6 +115,9 @@ int main(int argc, char** argv)
 
     for (const string &config_file : config_files)
     {
+        if(config_file == "doipserver.lua") {   
+            doipSimServer.startWithConfig(config_file);
+        }
         thread t(start_server, config_file, device);
         threads.push_back(move(t));
         usleep(50000);
@@ -99,6 +126,10 @@ int main(int argc, char** argv)
     for (unsigned int i = 0; i < threads.size(); ++i)
     {
         threads[i].join();
+    }
+
+    while(doipSimServer.isServerActive()) {
+        usleep(1000000);
     }
 
     return 0;

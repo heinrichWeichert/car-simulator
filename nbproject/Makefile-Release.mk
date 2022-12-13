@@ -45,7 +45,10 @@ OBJECTFILES= \
 	${OBJECTDIR}/src/session_controller.o \
 	${OBJECTDIR}/src/uds_receiver.o \
 	${OBJECTDIR}/src/utilities.o \
-	${OBJECTDIR}/src/j1939_simulator.o
+	${OBJECTDIR}/src/j1939_simulator.o \
+	${OBJECTDIR}/src/doip_sim_server.o \
+	${OBJECTDIR}/src/doip_simulator.o \
+	${OBJECTDIR}/src/doip_configuration_file.o
 
 
 # Test Directory
@@ -86,7 +89,7 @@ FFLAGS=
 ASFLAGS=
 
 # Link Libraries and Options
-LDLIBSOPTIONS=`pkg-config --libs lua-5.2`  `pkg-config --libs libsocketcan` -lstdc++fs 
+LDLIBSOPTIONS=-L/usr/lib/libdoip -Wl,-rpath,'/usr/lib/libdoip' -ldoipserver -ldoipcommon `pkg-config --libs lua-5.2`  `pkg-config --libs libsocketcan` -lstdc++fs 
 
 # Build Targets
 .build-conf: ${BUILD_SUBPROJECTS}
@@ -99,57 +102,72 @@ ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/amos-ss17-proj4: ${OBJECTFILES}
 ${OBJECTDIR}/src/broadcast_receiver.o: src/broadcast_receiver.cpp
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/broadcast_receiver.o src/broadcast_receiver.cpp
+	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include -I/usr/lib/libdoip/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/broadcast_receiver.o src/broadcast_receiver.cpp
 
 ${OBJECTDIR}/src/ecu_lua_script.o: src/ecu_lua_script.cpp
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/ecu_lua_script.o src/ecu_lua_script.cpp
+	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include -I/usr/lib/libdoip/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/ecu_lua_script.o src/ecu_lua_script.cpp
 
 ${OBJECTDIR}/src/ecu_timer.o: src/ecu_timer.cpp
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/ecu_timer.o src/ecu_timer.cpp
+	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include -I/usr/lib/libdoip/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/ecu_timer.o src/ecu_timer.cpp
 
 ${OBJECTDIR}/src/electronic_control_unit.o: src/electronic_control_unit.cpp
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/electronic_control_unit.o src/electronic_control_unit.cpp
+	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include -I/usr/lib/libdoip/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/electronic_control_unit.o src/electronic_control_unit.cpp
 
 ${OBJECTDIR}/src/isotp_receiver.o: src/isotp_receiver.cpp
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/isotp_receiver.o src/isotp_receiver.cpp
+	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include -I/usr/lib/libdoip/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/isotp_receiver.o src/isotp_receiver.cpp
 
 ${OBJECTDIR}/src/isotp_sender.o: src/isotp_sender.cpp
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/isotp_sender.o src/isotp_sender.cpp
+	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include -I/usr/lib/libdoip/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/isotp_sender.o src/isotp_sender.cpp
 
 ${OBJECTDIR}/src/main.o: src/main.cpp
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/main.o src/main.cpp
+	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include -I/usr/lib/libdoip/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/main.o src/main.cpp
 
 ${OBJECTDIR}/src/session_controller.o: src/session_controller.cpp
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/session_controller.o src/session_controller.cpp
+	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include -I/usr/lib/libdoip/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/session_controller.o src/session_controller.cpp
 
 ${OBJECTDIR}/src/uds_receiver.o: src/uds_receiver.cpp
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/uds_receiver.o src/uds_receiver.cpp
+	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include -I/usr/lib/libdoip/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/uds_receiver.o src/uds_receiver.cpp
 
 ${OBJECTDIR}/src/utilities.o: src/utilities.cpp
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/utilities.o src/utilities.cpp
+	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include -I/usr/lib/libdoip/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/utilities.o src/utilities.cpp
 
 ${OBJECTDIR}/src/j1939_simulator.o: src/j1939_simulator.cpp
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/j1939_simulator.o src/j1939_simulator.cpp
+	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include -I/usr/lib/libdoip/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/j1939_simulator.o src/j1939_simulator.cpp
+
+${OBJECTDIR}/src/doip_configuration_file.o: src/doip_configuration_file.cpp
+	${MKDIR} -p ${OBJECTDIR}/src
+	${RM} "$@.d"
+	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include -I/usr/lib/libdoip/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/doip_configuration_file.o src/doip_configuration_file.cpp
+
+${OBJECTDIR}/src/doip_simulator.o: src/doip_simulator.cpp
+	${MKDIR} -p ${OBJECTDIR}/src
+	${RM} "$@.d"
+	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include -I/usr/lib/libdoip/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/doip_simulator.o src/doip_simulator.cpp
+
+${OBJECTDIR}/src/doip_sim_server.o: src/doip_sim_server.cpp
+	${MKDIR} -p ${OBJECTDIR}/src
+	${RM} "$@.d"
+	$(COMPILE.cc) -O2 -I/usr/include/lua5.2 -ISelene/include -I/usr/lib/libdoip/include `pkg-config --cflags lua-5.2` -std=c++17  -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/doip_sim_server.o src/doip_sim_server.cpp
 
 
 # Subprojects
