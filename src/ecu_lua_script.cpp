@@ -422,10 +422,14 @@ string EcuLuaScript::toByteResponse(uint32_t value,
  */
 void EcuLuaScript::sendRaw(const string& response) const
 {
-    assert(pIsoTpSender_ != nullptr);
-
     vector<uint8_t> resp = literalHexStrToBytes(response);
-    pIsoTpSender_->sendData(resp.data(), resp.size());
+    if(pIsoTpSender_) {
+        pIsoTpSender_->sendData(resp.data(), resp.size());
+    }
+    if(pDoipSimServer_) {
+        pDoipSimServer_->sendDiagnosticResponse(resp, doipLogicalEcuAddress_);
+    }
+
 }
 
 /**
