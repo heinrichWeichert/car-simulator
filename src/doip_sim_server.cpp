@@ -40,9 +40,19 @@ void DoIPSimServer::shutdown() {
 }
 
 /**
- * Closes the connection of the server by ending the listener threads
+ * Callback when connection is terminated
  */
-void DoIPSimServer::closeConnection() {
+void DoIPSimServer::closeConnection() {}
+
+/**
+ * Closes the connection from the server side
+ */
+void DoIPSimServer::triggerDisconnection() {
+    if(doipConnection) doipConnection->triggerDisconnection();
+}
+
+void DoIPSimServer::sendVehicleAnnouncements() {
+    doipServer->sendVehicleAnnouncement();
 }
 
 /*

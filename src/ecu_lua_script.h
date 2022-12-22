@@ -8,6 +8,7 @@
 
 #include "selene.h"
 #include "isotp_sender.h"
+#include "doip_sim_server.h"
 #include "session_controller.h"
 #include "request_byte_tree_node.h"
 #include <string>
@@ -39,6 +40,8 @@ struct J1939PGNData
     unsigned int cycleTime;
     std::string payload;
 };
+
+class DoIPSimServer;
 
 class EcuLuaScript
 {
@@ -81,9 +84,12 @@ public:
     void sendRaw(const std::string& response) const;
     std::uint8_t getCurrentSession() const;
     void switchToSession(int ses);
+    void disconnectDoip();
+    void sendDoipVehicleAnnouncements();
 
     void registerSessionController(SessionController* pSesCtrl) noexcept;
     void registerIsoTpSender(IsoTpSender* pSender) noexcept;
+    void registerDoipSimServer(DoIPSimServer *pDoipSimServer) noexcept;
 
     std::string intToHexString(const uint8_t* buffer, const std::size_t num_bytes);
 
@@ -98,6 +104,7 @@ private:
     std::string ecu_ident_;
     SessionController* pSessionCtrl_ = nullptr;
     IsoTpSender* pIsoTpSender_ = nullptr;
+    DoIPSimServer *pDoipSimServer_ = nullptr;
     bool hasRequestId_ = false;
     std::uint32_t requestId_;
     bool hasResponseId_ = false;

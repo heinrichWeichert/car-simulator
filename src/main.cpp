@@ -57,6 +57,7 @@ void start_server(const string &config_file, const string &device)
         doipSimulator = new DoIPSimulator(script);
         doipSimServer.addECU(doipSimulator);
         doipSimulators.push_back(doipSimulator);
+        script->registerDoipSimServer(&doipSimServer);
     }
 
     if(udsSimulator) {

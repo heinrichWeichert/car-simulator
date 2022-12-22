@@ -10,6 +10,8 @@
 
 #define MAX_LOG_LENGTH 10
 
+class DoIPSimulator;
+
 class DoIPSimServer
 {
 public:
@@ -23,7 +25,10 @@ public:
     bool isServerActive() { return serverActive; };
     DoIPServer* getServerInstance();
     std::vector<std::thread> doipReceiver;
-    
+
+    void triggerDisconnection();
+    void sendVehicleAnnouncements();
+
 private:
     DoIPServer* doipServer;
     DoipConfigurationFile* doipConfig;
@@ -38,8 +43,9 @@ private:
     void configureDoipServer();
     void listenUdp();
     void listenTcp();
-    void closeConnection();
    
+    void closeConnection();
+
 };
 
 #endif /* DOIP_SIM_SERVER_H */

@@ -49,6 +49,8 @@ EcuLuaScript::EcuLuaScript(const string& ecuIdent, const string& luaScript)
         // member functions
         lua_state_["getCurrentSession"] = [this]() -> uint32_t { return this->getCurrentSession(); }; 
         lua_state_["switchToSession"] = [this](uint32_t ses) { this->switchToSession(ses); };
+        lua_state_["disconnectDoip"] = [this]() { this->disconnectDoip(); }; 
+        lua_state_["sendDoipVehicleAnnouncements"] = [this]() { this->sendDoipVehicleAnnouncements(); }; 
         lua_state_["sendRaw"] = [this](const string& msg) { this->sendRaw(msg); };
 
         lua_state_.Load(luaScript);
@@ -420,10 +422,14 @@ string EcuLuaScript::toByteResponse(uint32_t value,
  */
 void EcuLuaScript::sendRaw(const string& response) const
 {
-    assert(pIsoTpSender_ != nullptr);
-
     vector<uint8_t> resp = literalHexStrToBytes(response);
-    pIsoTpSender_->sendData(resp.data(), resp.size());
+    if(pIsoTpSender_) {
+        pIsoTpSender_->sendData(resp.data(), resp.size());
+    }
+    if(pDoipSimServer_) {
+        pDoipSimServer_->sendDiagnosticResponse(resp, doipLogicalEcuAddress_);
+    }
+
 }
 
 /**
@@ -458,6 +464,20 @@ void EcuLuaScript::switchToSession(int ses)
 
     pSessionCtrl_->setCurrentUdsSession(UdsSession(ses));
 }
+
+/**
+ * Disconnect the currently active DoIP TCP connection
+ */
+void EcuLuaScript::disconnectDoip()
+{
+    if(pDoipSimServer_) pDoipSimServer_->triggerDisconnection();
+}
+
+void EcuLuaScript::sendDoipVehicleAnnouncements()
+{
+    if(pDoipSimServer_) pDoipSimServer_->sendVehicleAnnouncements();
+}
+
 
 /**
  * Gets all keys from the given Lua table
@@ -700,6 +720,11 @@ void EcuLuaScript::registerSessionController(SessionController* pSesCtrl) noexce
 void EcuLuaScript::registerIsoTpSender(IsoTpSender* pSender) noexcept
 {
     pIsoTpSender_ = pSender;
+}
+
+void EcuLuaScript::registerDoipSimServer(DoIPSimServer *pDoipSimServer) noexcept
+{
+    pDoipSimServer_ = pDoipSimServer;
 }
 
 string EcuLuaScript::intToHexString(const uint8_t* buffer, const size_t num_bytes)
