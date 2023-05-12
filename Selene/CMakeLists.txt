@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project(Selene)
 
-set(LUA_PC_CFG "Lua;lua;lua5.3;lua5.2;lua5.1" CACHE STRING "pkg-config Lua configuration file (or files, separated by ;)")
+set(LUA_PC_CFG "lua;lua5.3;lua5.2;lua5.1" CACHE STRING "pkg-config Lua configuration file (or files, separated by ;)")
 
 find_package(PkgConfig)
 if(PKG_CONFIG_EXECUTABLE)

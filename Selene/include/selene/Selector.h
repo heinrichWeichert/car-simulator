@@ -450,6 +450,14 @@ public:
         return lua_isfunction(_state, -1);
     }
 
+    bool isCallbackFunction() {
+        ResetStackOnScopeExit save(_state);
+        _traverse();
+        _get();
+
+        return lua_isfunction(_state, -1) && ;
+    }
+
     bool isTable() {
         ResetStackOnScopeExit save(_state);
         _traverse();
