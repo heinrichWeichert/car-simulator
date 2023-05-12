@@ -24,7 +24,7 @@ For instructions to set up all necessary installations, read the [HACKME](howto/
 
 #### Basics Communication
 
-To simulate a ECU (Electronic Control Unit), the Lua file hold various tables describing the data and behavior. Therefore a single ECU has to provide at least a `RequesId` and a `ResponseId` to be able to communicate via the CAN ISO-TP protocol. Note: A single Lua file could contain various ECUs.
+To simulate a ECU (Electronic Control Unit), the Lua file hold various tables describing the data and behavior. Therefore a single ECU has to provide at least a `RequestId` and a `ResponseId` to be able to communicate via the CAN ISO-TP protocol. Note: A single Lua file could contain various ECUs.
 
 ```lua
 PCM = { -- ECU name
