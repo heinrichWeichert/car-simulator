@@ -47,11 +47,11 @@ class EcuLuaScript
 {
 public:
     EcuLuaScript() = delete;
-    EcuLuaScript(const std::string& ecuIdent, const std::string& luaScript);
-    EcuLuaScript(const EcuLuaScript& orig) = delete;
-    EcuLuaScript& operator =(const EcuLuaScript& orig) = delete;
-    EcuLuaScript(EcuLuaScript&& orig) noexcept;
-    EcuLuaScript& operator =(EcuLuaScript&& orig) noexcept;
+    EcuLuaScript(const std::string &ecuIdent, const std::string &luaScript);
+    EcuLuaScript(const EcuLuaScript &orig) = delete;
+    EcuLuaScript &operator=(const EcuLuaScript &orig) = delete;
+    EcuLuaScript(EcuLuaScript &&orig) noexcept;
+    EcuLuaScript &operator=(EcuLuaScript &&orig) noexcept;
     virtual ~EcuLuaScript() = default;
 
     bool hasRequestId() const { return hasRequestId_; };
@@ -66,44 +66,43 @@ public:
     std::uint16_t getDoIPLogicalEcuAddress() const { return doipLogicalEcuAddress_; };
 
     std::string getSeed(std::uint8_t identifier);
-    std::string getDataByIdentifier(const std::string& identifier);
-    std::string getDataByIdentifier(const std::string& identifier, const std::string& session);
+    std::string getDataByIdentifier(const std::string &identifier);
+    std::string getDataByIdentifier(const std::string &identifier, const std::string &session);
     std::vector<std::string> getJ1939PGNs();
-    J1939PGNData getJ1939RequestPGNData(const map<string,shared_ptr<Selector>> pgnMap, const std::string& pgn);
+    J1939PGNData getJ1939RequestPGNData(const map<string, shared_ptr<Selector>> pgnMap, const std::string &pgn);
     std::string getJ1939Response(const shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> requestByteTree, const uint32_t pgn, const uint8_t *payload, const uint32_t payloadLength);
 
     std::optional<string> getRawResponse(const shared_ptr<RequestByteTreeNode<shared_ptr<Selector>>> requestByteTree, const uint8_t *payload, const uint32_t payloadLength);
-    static std::vector<std::uint8_t> literalHexStrToBytes(const std::string& hexString);
+    static std::vector<std::uint8_t> literalHexStrToBytes(const std::string &hexString);
 
-    static std::string ascii(const std::string& utf8_str) noexcept;
-    static std::string getCounterByte(const std::string& msg) noexcept;
-    static void getDataBytes(const std::string& msg) noexcept;
+    static std::string ascii(const std::string &utf8_str) noexcept;
+    static std::string getCounterByte(const std::string &msg) noexcept;
+    static void getDataBytes(const std::string &msg) noexcept;
     static std::string createHash() noexcept;
     static std::string toByteResponse(std::uint32_t value, std::uint32_t len = sizeof(std::uint32_t)) noexcept;
     static void sleep(unsigned int ms) noexcept;
-    void sendRaw(const std::string& response) const;
     std::uint8_t getCurrentSession() const;
     void switchToSession(int ses);
     void disconnectDoip();
     void sendDoipVehicleAnnouncements();
 
-    void registerSessionController(SessionController* pSesCtrl) noexcept;
-    void registerIsoTpSender(IsoTpSender* pSender) noexcept;
+    void registerSessionController(SessionController *pSesCtrl) noexcept;
+    void registerIsoTpSender(IsoTpSender *pSender) noexcept;
     void registerDoipSimServer(DoIPSimServer *pDoipSimServer) noexcept;
 
-    std::string intToHexString(const uint8_t* buffer, const std::size_t num_bytes);
+    std::string intToHexString(const uint8_t *buffer, const std::size_t num_bytes);
 
-    template<class T>
+    template <class T>
     optional<T> getValueFromTree(const shared_ptr<RequestByteTreeNode<T>> requestByteTree, const vector<uint8_t> payload);
     shared_ptr<RequestByteTreeNode<shared_ptr<sel::Selector>>> buildRequestByteTreeFromPGNTable();
     shared_ptr<RequestByteTreeNode<shared_ptr<sel::Selector>>> buildRequestByteTreeFromRawTable();
-    map<string,shared_ptr<sel::Selector>> buildRequestPGNMap();
+    map<string, shared_ptr<sel::Selector>> buildRequestPGNMap();
 
 private:
     sel::State lua_state_{true};
     std::string ecu_ident_;
-    SessionController* pSessionCtrl_ = nullptr;
-    IsoTpSender* pIsoTpSender_ = nullptr;
+    SessionController *pSessionCtrl_ = nullptr;
+    IsoTpSender *pIsoTpSender_ = nullptr;
     DoIPSimServer *pDoipSimServer_ = nullptr;
     bool hasRequestId_ = false;
     std::uint32_t requestId_;
@@ -122,15 +121,14 @@ private:
     shared_ptr<RequestByteTreeNode<shared_ptr<sel::Selector>>> buildRequestByteTree(
         vector<string> requestKeys, std::function<shared_ptr<sel::Selector>(string &key)> mappingFunction);
 
-    template<class T>
+    template <class T>
     void findAndAddMatchesForNextByte(set<shared_ptr<RequestByteTreeNode<T>>> &matchingNodes, shared_ptr<RequestByteTreeNode<T>> currentByte, uint8_t nextByte);
-	template<class T>
+    template <class T>
     shared_ptr<RequestByteTreeNode<T>> findBestMatchingRequest(set<shared_ptr<RequestByteTreeNode<T>>> &potentiallyMatchingRequests);
-	template<class T>
+    template <class T>
     shared_ptr<RequestByteTreeNode<T>> getThisOrNextWildcardWithResponse(shared_ptr<RequestByteTreeNode<T>> requestByteNode);
-	template<class T>
+    template <class T>
     shared_ptr<RequestByteTreeNode<T>> addRequestToTree(shared_ptr<RequestByteTreeNode<T>> requestByteTree, string &requestString);
-
 };
 
 #endif /* ECU_LUA_SCRIPT_H */

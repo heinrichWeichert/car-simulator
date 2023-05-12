@@ -51,7 +51,6 @@ EcuLuaScript::EcuLuaScript(const string& ecuIdent, const string& luaScript)
         lua_state_["switchToSession"] = [this](uint32_t ses) { this->switchToSession(ses); };
         lua_state_["disconnectDoip"] = [this]() { this->disconnectDoip(); }; 
         lua_state_["sendDoipVehicleAnnouncements"] = [this]() { this->sendDoipVehicleAnnouncements(); }; 
-        lua_state_["sendRaw"] = [this](const string& msg) { this->sendRaw(msg); };
 
         lua_state_.Load(luaScript);
         if (lua_state_[ecuIdent.c_str()].exists())
@@ -414,24 +413,6 @@ string EcuLuaScript::toByteResponse(uint32_t value,
     }
     return "";
 }
-
-/**
- * Sends the given response (string of hex bytes) immediately.
- *
- * @param response: the raw response message to send (e.g. "DE AD C0 DE")
- */
-void EcuLuaScript::sendRaw(const string& response) const
-{
-    vector<uint8_t> resp = literalHexStrToBytes(response);
-    if(pIsoTpSender_) {
-        pIsoTpSender_->sendData(resp.data(), resp.size());
-    }
-    if(pDoipSimServer_) {
-        pDoipSimServer_->sendDiagnosticResponse(resp, doipLogicalEcuAddress_);
-    }
-
-}
-
 /**
  * Suspend the script for the given number of milliseconds.
  *

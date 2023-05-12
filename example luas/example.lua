@@ -12,11 +12,6 @@ Main = {
         -- OBD2 Standard PIDs
         
         ["01 46"] = "41 46 40",
-        -- you can also send the answer via sendRaw
-        ["01 0C"] = function(request)
-            sendRaw("41 0C 01 FF")
-            return 1
-        end,
         --the following function is a wildcard
         -- if there is no exact match for the request (27 02...), it will jump into this function
         ["05 01 *"] = function(request)
